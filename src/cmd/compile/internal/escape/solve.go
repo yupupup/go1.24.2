@@ -102,7 +102,7 @@ func (b *batch) walkOne(root *location, walkgen uint32, enqueue func(*location))
 					if base.Flag.LowerM >= 2 {
 						fmt.Printf("%s: %v escapes to heap:\n", base.FmtPos(l.n.Pos()), l.n)
 					}
-					explanation := b.explainPath(root, l)
+					explanation := b.explainPath(root, l) //root<--l (root=&l)
 					if logopt.Enabled() {
 						var e_curfn *ir.Func // TODO(mdempsky): Fix.
 						logopt.LogOpt(l.n.Pos(), "escape", "escape", ir.FuncName(e_curfn), fmt.Sprintf("%v escapes to heap", l.n), explanation)
@@ -175,6 +175,11 @@ func (b *batch) walkOne(root *location, walkgen uint32, enqueue func(*location))
 
 // explainPath prints an explanation of how src flows to the walk root.
 func (b *batch) explainPath(root, src *location) []*logopt.LoggedOpt {
+
+	// 进入这个函数，可能有for循环的边
+	is_not_1_edge = true
+	whys = []one_why{}
+
 	visited := make(map[*location]bool)
 	pos := base.FmtPos(src.n.Pos())
 	var explanation []*logopt.LoggedOpt
@@ -194,6 +199,9 @@ func (b *batch) explainPath(root, src *location) []*logopt.LoggedOpt {
 		}
 
 		explanation = b.explainFlow(pos, dst, src, edge.derefs, edge.notes, explanation)
+		if is_not_1_edge { // 修改1
+			whys = b.recordInfo(dst, src, edge.notes, whys)
+		}
 
 		if dst == root {
 			break
@@ -201,7 +209,327 @@ func (b *batch) explainPath(root, src *location) []*logopt.LoggedOpt {
 		src = dst
 	}
 
+	b.countAll(whys) // 修改2
 	return explanation
+}
+
+// var is_new_fun_new = false           // 表示现在是一个新的函数，在Batch里面更新
+// var is_new_fun_old = false           // 原来的判断新的函数的bool，如果新的和old不一样，说明进入了新函数
+var is_not_1_edge bool = false       // 是不是一条边，如果explainPath函数由graph.go调用则只有一条边，否则两条边
+var whys = []one_why{}               // 用于记录所有原因
+var one_escape_func = []one_escape{} // 用于记录所有的逃逸节点以及其逃逸原因，每次只记录一个函数的所有节点
+
+type one_why struct {
+	why     string    // 一个why
+	where   *ir.Node  // 哪个语句发生了逃逸
+	srcLoc  *location // 有向边的起初节点
+	dstLoc  *location // 有向边的终止节点
+	srcName string
+	dstName string
+}
+
+type one_escape struct {
+	srcLoc  *location   // 逃逸节点
+	dstLoc  *location   // 逃逸目的节点
+	why     ESCAPE_TYPE // 逃逸原因
+	srcName string
+	dstName string
+	// e.g.
+	// p1 = &i  i 逃逸，src = i  dst = p1 dst = &src
+}
+
+type ESCAPE_TYPE int
+
+const (
+	E_RETURN ESCAPE_TYPE = iota
+	E_LAREG
+	E_DYNAMIC
+	E_GLOBAL
+	E_INDIRECT
+	E_OUTERLOOP
+	E_FUNCPARAM
+
+	E_UNKNOWN
+	E_NOT // 没找到逃逸
+)
+
+// 定义的所有种类的个数
+type all_count struct {
+	c_retrun        int // return型的个数
+	c_too_large     int // 超出栈空间
+	c_dynamic_alloc int // 动态分配空间
+	c_global_ref    int // 被全局变量引用
+	c_indirect_ref  int // 被间接引用
+	c_outerloop_ref int // 被外层循环使用
+	c_func_param    int // 函数参数引用
+
+	c_unknown int // 未知
+}
+
+// 全局变量，输出个数
+var ac = all_count{
+	c_retrun:        0,
+	c_too_large:     0,
+	c_dynamic_alloc: 0,
+	c_global_ref:    0,
+	c_indirect_ref:  0,
+	c_outerloop_ref: 0,
+	c_func_param:    0,
+
+	c_unknown: 0,
+}
+
+func (b *batch) recordInfo(dstLoc, srcLoc *location, notes *note, whys []one_why) []one_why {
+	for n := notes; n != nil; n = n.next {
+		clonedWhy := strings.Clone(n.why) // 完全复制字节，不再共享内存
+
+		clonedSrcName := b.explainLoc(srcLoc)
+		clonedDstName := b.explainLoc(dstLoc)
+
+		// 构造要追加的 one_why 实例
+		entry := one_why{
+			srcLoc:  srcLoc,
+			dstLoc:  dstLoc,
+			why:     clonedWhy,
+			where:   &n.where,
+			srcName: clonedSrcName,
+			dstName: clonedDstName,
+		}
+		// 追加到切片末尾
+		whys = append(whys, entry)
+	}
+	return whys
+}
+
+func (b *batch) recordEscapeInfo(srcLoc, dstLoc *location, whyx ESCAPE_TYPE) {
+	clonedSrcName := b.explainLoc(srcLoc)
+	clonedDstName := b.explainLoc(dstLoc)
+	// 构造要追加的 one_why 实例
+	entry := one_escape{
+		srcLoc:  srcLoc,
+		dstLoc:  dstLoc,
+		why:     whyx,
+		srcName: clonedSrcName,
+		dstName: clonedDstName,
+	}
+	// 追加到切片末尾
+	one_escape_func = append(one_escape_func, entry)
+
+	// 然后对不同种类进行记录和输出
+	switch whyx {
+	case E_RETURN:
+		ac.c_retrun++
+		fmt.Printf("my return escape count %d \n", ac.c_retrun)
+	case E_LAREG:
+		ac.c_too_large++
+		fmt.Printf("my too large escape count %d\n", ac.c_too_large)
+	case E_DYNAMIC:
+		ac.c_dynamic_alloc++
+		fmt.Printf("my dynamic alloc escape count %d\n", ac.c_dynamic_alloc)
+	case E_GLOBAL:
+		ac.c_global_ref++
+		fmt.Printf("my global ref escape count %d\n", ac.c_global_ref)
+	case E_OUTERLOOP:
+		ac.c_outerloop_ref++
+		fmt.Printf("my outerloop ref escape count %d\n", ac.c_outerloop_ref)
+	case E_INDIRECT:
+		ac.c_indirect_ref++
+		fmt.Printf("my indirect ref escape count %d\n", ac.c_indirect_ref)
+	case E_UNKNOWN:
+		// 未知类型
+		ac.c_unknown++
+		fmt.Printf("my unKnown escape count %d\n", ac.c_unknown)
+	default:
+		fmt.Printf("switch defalut\n")
+	}
+}
+
+// 找已经知道的节点的逃逸情况，如果没有，输出空""，如果有则输出节点和逃逸的类型
+func (b *batch) find_escape(dstLoc *location) one_escape {
+	var i one_escape
+	is_find := false
+
+	// 如果不是一个符号而是堆或者空等等
+	if dstLoc.n == nil || dstLoc == &b.heapLoc {
+		return one_escape{
+			why: E_NOT,
+		}
+	}
+	// A -> B -> C -> D
+	// 第一次 A -> B -> C  存 A --> C  C逃逸
+	// 第二次 C -> D 去找C的逃逸情况  找到了C的逃逸情况，那么D的逃逸情况就是C的逃逸情况
+	// 只有我找的节点是一个正常的变量，再去找
+	for _, i = range one_escape_func {
+		if dstLoc.n.Op() == ir.ONAME && i.srcLoc.n.Sym().Name == dstLoc.n.Sym().Name {
+			// 找新的节点的逃逸的节点等于现在这个节点未逃逸的，则找到
+			is_find = true
+			break
+		}
+	}
+	if is_find {
+		return i
+	} else {
+		return one_escape{
+			why: E_NOT,
+		}
+	}
+}
+
+func (b *batch) lhs_is_oname(n *ir.Node) bool {
+	_, ok1 := (*n).(*ir.Name)
+	if ok1 {
+		return true
+	} else {
+		return false
+	}
+}
+
+// 返回一个任意lhs种类的ir.Node的ir.Name字段
+func (b *batch) find_Node_Name(n *ir.Node) *ir.Name {
+	v1, ok1 := (*n).(*ir.Name)
+	if ok1 {
+		return v1
+	}
+
+	v2, ok2 := (*n).(*ir.StarExpr)
+	if ok2 {
+		return b.find_Node_Name(&v2.X)
+	}
+
+	v3, ok3 := (*n).(*ir.SelectorExpr)
+	if ok3 {
+		return b.find_Node_Name(&v3.X)
+	}
+
+	v4, ok4 := (*n).(*ir.IndexExpr)
+	if ok4 {
+		return b.find_Node_Name(&v4.X)
+	}
+
+	return nil
+}
+
+func (b *batch) countAll(whys []one_why) {
+	//fmt.Printf("Start Count\n")
+
+	var haven_find_escape bool = false // 表示找到了溢出的原因
+	var escape_reason ESCAPE_TYPE      // 当前变量的逃逸原因
+
+	whys_len := len(whys) - 1 // whys的长度减一，用于索引
+
+	// 先找是不是有其他已知的逃逸节点
+	ss := b.find_escape(whys[whys_len].dstLoc)
+	if ss.why != E_NOT {
+		// 不为空，则能找到
+		haven_find_escape = true
+		escape_reason = ss.why
+	} else {
+		/*	第一步确定左值的类型
+			   	合法左值有6种类型：
+				标识符		k   Name
+				指针解引用  *p  StarExpr
+				结构体字段选择	X.p SelectorExpr
+				数组或切片索引  X[2] IndexExpr
+				map索引		    X["index"]	IndexExpr
+				括号表达式  编译后没有括号了
+
+				除了Name以外的其他表达式都有一个节点X Node，因此只需要判断出是否是ir.Name即可
+		*/
+
+		// 判断是不是堆溢出类型的，如果是，那么则可能是引用全局变量导致的
+		// 如果后面找不到其他的溢出可能，那么就是heap
+		var haven_heap_escape bool = false // 表示有堆溢出的情况
+		if whys[whys_len].dstLoc == &b.heapLoc {
+			haven_heap_escape = true
+		}
+		// 全局变量是extern的，赋值目前可能存在2种，一种是AssignStmt，一种是assignListStmt
+		// 先进行类型判断
+		if haven_heap_escape {
+			ass1, ok1 := (*whys[whys_len].where).(*ir.AssignStmt)
+			ass2, ok2 := (*whys[whys_len].where).(*ir.AssignListStmt)
+
+			if ok1 {
+				lhs_name := b.find_Node_Name(&ass1.X) // 递归取变量名  x[0].i 取 x
+				// 先判断左值间接类型，再判断全局变量
+				if !b.lhs_is_oname(&ass1.X) && lhs_name.Class != ir.PEXTERN {
+					// 判断间接引用
+					// 如果左边不是Name类型的，而且左边不是PEXTERN，那么只可能是间接引用的
+					escape_reason = E_INDIRECT
+					haven_find_escape = true
+
+				} else if lhs_name.Class == ir.PEXTERN {
+					escape_reason = E_GLOBAL
+					haven_find_escape = true
+				}
+
+			} else if ok2 {
+				for _, ass2_one := range ass2.Lhs {
+					lhs_name := b.find_Node_Name(&ass2_one) // 递归取变量名
+
+					// 如果是对应的逃逸节点，再去判断是不是全局类型的
+					if !b.lhs_is_oname(&ass2_one) && lhs_name.Class != ir.PEXTERN {
+						// 判断间接引用
+						// 如果左边不是Name类型的，而且左边不是PEXTERN，那么只可能是间接引用的
+						escape_reason = E_INDIRECT
+						haven_find_escape = true
+						break
+					} else if lhs_name.Class == ir.PEXTERN {
+						// 一定是全局变量类型的
+						// 如果有多个变量，我只运行一次，因为一次这个函数调用只会调用一个逃逸的变量
+						escape_reason = E_GLOBAL
+						haven_find_escape = true
+						break
+
+					}
+				}
+			}
+
+		}
+
+		// 如果是返回值类型的
+		_, ok := (*whys[whys_len].where).(*ir.ReturnStmt)
+		if ok {
+			// 找前面是不是有取地址的
+			for _, ass := range whys {
+				_, ok1 := (*ass.where).(*ir.AddrExpr)
+				if ok1 {
+					escape_reason = E_RETURN
+					haven_find_escape = true
+					break
+				}
+			}
+		}
+
+		// 过大的数组
+		if whys[whys_len].why == "too large for stack" {
+			escape_reason = E_LAREG
+			haven_find_escape = true
+		}
+
+		// 非常量make
+		if whys[whys_len].why == "non-constant size" {
+			escape_reason = E_DYNAMIC
+			haven_find_escape = true
+		}
+
+		// 这里用于判断外层循环的，堆泄露节点的loopDepth=0
+		if whys[whys_len].dstLoc != &b.heapLoc && (whys[0].srcLoc.loopDepth > whys[whys_len].dstLoc.loopDepth) {
+			// 表示循环
+			escape_reason = E_OUTERLOOP
+			haven_find_escape = true
+		}
+
+		// 没找到
+		if !haven_find_escape {
+			escape_reason = E_UNKNOWN
+			haven_find_escape = true
+		}
+	}
+
+	// 记录逃逸原因
+	b.recordEscapeInfo(whys[0].srcLoc, whys[len(whys)-1].dstLoc, escape_reason)
+
+	is_not_1_edge = false
 }
 
 func (b *batch) explainFlow(pos string, dst, srcloc *location, derefs int, notes *note, explanation []*logopt.LoggedOpt) []*logopt.LoggedOpt {
@@ -237,6 +565,15 @@ func (b *batch) explainFlow(pos string, dst, srcloc *location, derefs int, notes
 				fmt.Sprintf("     from %v (%v)", note.where, note.why)))
 		}
 	}
+
+	// 判断种类
+	if !is_not_1_edge {
+		whys = []one_why{} // 清空
+		// 是一条边，说明在graph.go里调用，记录一组即可，然后直接count
+		whys = b.recordInfo(dst, srcloc, notes, whys)
+		b.countAll(whys)
+	}
+
 	return explanation
 }
 
