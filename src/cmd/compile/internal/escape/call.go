@@ -245,7 +245,7 @@ func (e *escape) goDeferStmt(n *ir.GoDeferStmt) {
 		clo.IsGoWrap = true
 	}
 
-	e.expr(k, call.Fun)
+	e.expr(k, call.Fun) //流到k的原因go/defer
 }
 
 // rewriteArgument rewrites the argument arg of the given call expression.

@@ -1,0 +1,50 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      
+      {
+        "name": "Debug Go Compiler (cmd/compile)",
+        "type": "go",
+        "request": "launch",
+        "mode": "exec",                                              // 直接执行已有二进制，不重新编译 :contentReference[oaicite:2]{index=2}
+        "program": "/home/rennny/dev/go/go/pkg/tool/linux_amd64/compile",    // 指向重建后的 compile 工具 :contentReference[oaicite:3]{index=3}
+        "args": [
+          "-m=2","-l",
+          "-o", "${workspaceFolder}/demo/demo.o",                    // 输出文件
+          "${workspaceFolder}/demo/demo.go"                          // 要编译的 main 源文件
+        ],
+        "cwd": "${workspaceFolder}/demo",                            // 工作目录可设为 main 包所在处 :contentReference[oaicite:4]{index=4}
+        "env": {
+          "GOROOT": "/home/rennny/dev/go/go"                                 // 确保标准库路径正确 :contentReference[oaicite:5]{index=5}
+        },
+       // "dlvToolPath": "/home/rennny/go/bin/dlv",                         // 如需指定特定 delve 可执行文件 :contentReference[oaicite:6]{index=6}
+        "showLog": true,                                              // 在 “Go Debug” 通道输出日志
+        "trace": "verbose"                                           // 开启 DAP 通道调试日志
+      }
+      
+      /*
+      {
+        // dlv exec ../../bin/go build . # under main dir
+        "name": "Debug main package",       // 调试配置的名称，这里为 "Debug main package"
+        "type": "go",                       // 指定调试类型为 Go 语言
+        "request": "launch",                // 请求类型，"launch" 表示启动调试器
+        "mode": "exec",                     // 调试模式，这里是执行模式 ("exec" 表示执行程序而非调试测试等)
+        "program": "${workspaceFolder}/bin/go",  // 指定要执行的 Go 程序，这里是指向项目文件夹外的 `../bin/go`，假设 `bin/go` 是一个可执行的 Go 二进制文件
+        "args": [                           // 指定传递给 Go 程序的参数
+            "-m=2",                           // 标志 `--` 用来区分 Go 程序的选项与后续的命令参数
+            "build",                        // `build` 命令，告诉 Go 构建当前包
+            "-a",                            // `-a` 选项，表示禁用构建缓存，强制重新构建所有内容
+            //"." ,
+          "${workspaceFolder}/demo/demo.go",                          // 要编译的 main 源文件                           
+           
+        ],
+        "cwd": "${workspaceFolder}/demo",  
+        "env": {
+          "GOROOT": "/home/rennny/dev/go/go"                                 // 确保标准库路径正确 :contentReference[oaicite:5]{index=5}
+        },
+        //"console": "integratedTerminal"      // 在集成终端中显示调试输出
+    }
+        */
+    
+    ]
+  }

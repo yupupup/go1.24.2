@@ -41,19 +41,20 @@ func (e *escape) addr(n ir.Node) hole {
 		} else {
 			e.mutate(n.X)
 		}
-	case ir.ODEREF:
+	case ir.ODEREF: //*x = a 把*x建模为堆   间接
 		n := n.(*ir.StarExpr)
 		e.mutate(n.X)
-	case ir.ODOTPTR:
+		//k.note(n.X, "dereference")
+	case ir.ODOTPTR: //*x.f
 		n := n.(*ir.SelectorExpr)
 		e.mutate(n.X)
-	case ir.OINDEXMAP:
+	case ir.OINDEXMAP: //map[]
 		n := n.(*ir.IndexExpr)
 		e.discard(n.X)
 		e.assignHeap(n.Index, "key of map put", n)
 	}
 
-	return k
+	return k //流向k
 }
 
 func (e *escape) mutate(n ir.Node) {

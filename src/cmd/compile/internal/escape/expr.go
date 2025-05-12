@@ -64,7 +64,7 @@ func (e *escape) exprSkipInit(k hole, n ir.Node) {
 		e.expr(k.addr(n, "address-of"), n.X) // "address-of"
 	case ir.ODEREF:
 		n := n.(*ir.StarExpr)
-		e.expr(k.deref(n, "indirection"), n.X) // "indirection"
+		e.expr(k.deref(n, "indirection"), n.X) // "indirection"  间接
 	case ir.ODOT, ir.ODOTMETH, ir.ODOTINTER:
 		n := n.(*ir.SelectorExpr)
 		e.expr(k.note(n, "dot"), n.X)

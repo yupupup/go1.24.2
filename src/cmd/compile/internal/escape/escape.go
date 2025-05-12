@@ -125,6 +125,11 @@ func Funcs(all []*ir.Func) {
 // Batch performs escape analysis on a minimal batch of
 // functions.
 func Batch(fns []*ir.Func, recursive bool) {
+	// 开始判断新的函数
+	// 重置变量
+	whys = []one_why{}
+	one_escape_func = []one_escape{}
+
 	var b batch
 	b.heapLoc.attrs = attrEscapes | attrPersists | attrMutates | attrCalls
 	b.mutatorLoc.attrs = attrMutates
