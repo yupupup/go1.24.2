@@ -187,6 +187,7 @@ func (e *escape) stmt(n ir.Node) {
 		e.call(nil, n)
 	case ir.OGO, ir.ODEFER:
 		n := n.(*ir.GoDeferStmt)
+		this_stmt_is_go_defer = true
 		e.goDeferStmt(n)
 
 	case ir.OTAILCALL:

@@ -1,10 +1,5 @@
 package demo
 
-// import (
-// 	"fmt"
-// 	"sync"
-// )
-
 var sink interface{}
 
 var p1 *int
@@ -14,7 +9,7 @@ var p2 **int
 // 	s := make([]int, 10) // 不逃逸
 // 	sink = s[0] + s[1]
 // }
-
+/*
 func returnAddress() **int {
 	// i_testAddr := 10
 	// p := &i_testAddr
@@ -24,7 +19,43 @@ func returnAddress() **int {
 	p2 := &p1
 	return p2 // 局部变量 i 的地址被返回，i 会逃逸到堆上
 }
+*/
+/*
+func f(d *int) {
+	*d = *d + 1
+	_ = d
+}
 
+func main() {
+	x := 1
+	// go func(data *int) {
+	// 	*data = *data + 1
+	// 	_ = data
+	// }(&x)
+
+	go f(&x)
+}
+
+*/
+func main() {
+	var result int
+	ch := make(chan int)
+	ch <- 1
+	go func() { result = <-ch }()
+
+	_ = result
+	//fmt.Println(result)
+}
+
+/*
+func newCounter() func() int {
+	count := 0
+	return func() int {
+		count++
+		return count
+	}
+}
+*/
 /*
 type X struct {
 	i *int
@@ -97,7 +128,8 @@ func main() {
 
 	wg.Wait() // 等待所有goroutine完成
 }
-
+*/
+/*
 //select channel(send recv)
 
 // type Node struct {

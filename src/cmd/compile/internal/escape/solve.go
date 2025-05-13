@@ -213,11 +213,10 @@ func (b *batch) explainPath(root, src *location) []*logopt.LoggedOpt {
 	return explanation
 }
 
-// var is_new_fun_new = false           // 表示现在是一个新的函数，在Batch里面更新
-// var is_new_fun_old = false           // 原来的判断新的函数的bool，如果新的和old不一样，说明进入了新函数
-var is_not_1_edge bool = false       // 是不是一条边，如果explainPath函数由graph.go调用则只有一条边，否则两条边
-var whys = []one_why{}               // 用于记录所有原因
-var one_escape_func = []one_escape{} // 用于记录所有的逃逸节点以及其逃逸原因，每次只记录一个函数的所有节点
+var this_stmt_is_go_defer bool = false // 用于记录当前分析的变量是不是go语句或者defer语句，这个在stmt.go的192行修改
+var is_not_1_edge bool = false         // 是不是一条边，如果explainPath函数由graph.go调用则只有一条边，否则两条边
+var whys = []one_why{}                 // 用于记录所有原因
+var one_escape_func = []one_escape{}   // 用于记录所有的逃逸节点以及其逃逸原因，每次只记录一个函数的所有节点
 
 type one_why struct {
 	why     string    // 一个why
@@ -234,20 +233,22 @@ type one_escape struct {
 	why     ESCAPE_TYPE // 逃逸原因
 	srcName string
 	dstName string
-	// e.g.
-	// p1 = &i  i 逃逸，src = i  dst = p1 dst = &src
+	//a--> b--> c,在one_why（存单独每一跳）中记录为a--> b, b--> c ,在one_escape中记录为a--> c
 }
 
 type ESCAPE_TYPE int
 
 const (
-	E_RETURN ESCAPE_TYPE = iota
-	E_LAREG
-	E_DYNAMIC
-	E_GLOBAL
-	E_INDIRECT
-	E_OUTERLOOP
-	E_FUNCPARAM
+	E_RETURN     ESCAPE_TYPE = iota // 返回值指针
+	E_LAREG                         // 过大的make
+	E_DYNAMIC                       // make动态赋值
+	E_GLOBAL                        // 全局变量引用
+	E_INDIRECT                      // 间接
+	E_OUTERLOOP                     // 外层循环
+	E_FUNCPARAM                     // 函数调用
+	E_CLOSURE                       // 闭包
+	E_COROUTINE                     // 协程
+	E_CO_CLOSURE                    // 协程调用所需要的闭包
 
 	E_UNKNOWN
 	E_NOT // 没找到逃逸
@@ -262,6 +263,9 @@ type all_count struct {
 	c_indirect_ref  int // 被间接引用
 	c_outerloop_ref int // 被外层循环使用
 	c_func_param    int // 函数参数引用
+	c_closure       int // 闭包类型逃逸
+	c_coroutine     int // 协程类型逃逸
+	c_co_closure    int // 由于协程调用需要的闭包
 
 	c_unknown int // 未知
 }
@@ -275,6 +279,9 @@ var ac = all_count{
 	c_indirect_ref:  0,
 	c_outerloop_ref: 0,
 	c_func_param:    0,
+	c_closure:       0,
+	c_coroutine:     0,
+	c_co_closure:    0,
 
 	c_unknown: 0,
 }
@@ -302,18 +309,6 @@ func (b *batch) recordInfo(dstLoc, srcLoc *location, notes *note, whys []one_why
 }
 
 func (b *batch) recordEscapeInfo(srcLoc, dstLoc *location, whyx ESCAPE_TYPE) {
-	clonedSrcName := b.explainLoc(srcLoc)
-	clonedDstName := b.explainLoc(dstLoc)
-	// 构造要追加的 one_why 实例
-	entry := one_escape{
-		srcLoc:  srcLoc,
-		dstLoc:  dstLoc,
-		why:     whyx,
-		srcName: clonedSrcName,
-		dstName: clonedDstName,
-	}
-	// 追加到切片末尾
-	one_escape_func = append(one_escape_func, entry)
 
 	// 然后对不同种类进行记录和输出
 	switch whyx {
@@ -335,6 +330,18 @@ func (b *batch) recordEscapeInfo(srcLoc, dstLoc *location, whyx ESCAPE_TYPE) {
 	case E_INDIRECT:
 		ac.c_indirect_ref++
 		fmt.Printf("my indirect ref escape count %d\n", ac.c_indirect_ref)
+	case E_CLOSURE:
+		// 这里就是普通的closure逃逸
+		ac.c_closure++
+		fmt.Printf("my clousure ref escape count %d\n", ac.c_closure)
+	case E_COROUTINE:
+		ac.c_coroutine++
+		fmt.Printf("my coroutine ref escape count %d\n", ac.c_coroutine)
+	case E_CO_CLOSURE:
+		// 这里的闭包是因为协程调用导致的，所有后面对这个逃逸的，一定是协程导致的
+		ac.c_co_closure++
+		fmt.Printf("my coroutine_closure ref escape count %d\n", ac.c_co_closure)
+
 	case E_UNKNOWN:
 		// 未知类型
 		ac.c_unknown++
@@ -342,6 +349,19 @@ func (b *batch) recordEscapeInfo(srcLoc, dstLoc *location, whyx ESCAPE_TYPE) {
 	default:
 		fmt.Printf("switch defalut\n")
 	}
+
+	clonedSrcName := b.explainLoc(srcLoc)
+	clonedDstName := b.explainLoc(dstLoc)
+	// 构造要追加的 one_why 实例
+	entry := one_escape{
+		srcLoc:  srcLoc,
+		dstLoc:  dstLoc,
+		why:     whyx,
+		srcName: clonedSrcName,
+		dstName: clonedDstName,
+	}
+	// 追加到切片末尾
+	one_escape_func = append(one_escape_func, entry)
 }
 
 // 找已经知道的节点的逃逸情况，如果没有，输出空""，如果有则输出节点和逃逸的类型
@@ -360,7 +380,8 @@ func (b *batch) find_escape(dstLoc *location) one_escape {
 	// 第二次 C -> D 去找C的逃逸情况  找到了C的逃逸情况，那么D的逃逸情况就是C的逃逸情况
 	// 只有我找的节点是一个正常的变量，再去找
 	for _, i = range one_escape_func {
-		if dstLoc.n.Op() == ir.ONAME && i.srcLoc.n.Sym().Name == dstLoc.n.Sym().Name {
+		// 直接找节点指向的是不是同一个而不是找名字
+		if dstLoc.n == i.srcLoc.n {
 			// 找新的节点的逃逸的节点等于现在这个节点未逃逸的，则找到
 			is_find = true
 			break
@@ -385,6 +406,7 @@ func (b *batch) lhs_is_oname(n *ir.Node) bool {
 }
 
 // 返回一个任意lhs种类的ir.Node的ir.Name字段
+// 间接访存用到，与lhs_is_oname函数一起判断左值是否是合法的，递归找左值变量名
 func (b *batch) find_Node_Name(n *ir.Node) *ir.Name {
 	v1, ok1 := (*n).(*ir.Name)
 	if ok1 {
@@ -409,13 +431,17 @@ func (b *batch) find_Node_Name(n *ir.Node) *ir.Name {
 	return nil
 }
 
+// 遍历whys，计算一个变量逃逸的情况
 func (b *batch) countAll(whys []one_why) {
 	//fmt.Printf("Start Count\n")
 
-	var haven_find_escape bool = false // 表示找到了溢出的原因
+	var haven_find_escape bool = false // 表示找到了逃逸的原因
 	var escape_reason ESCAPE_TYPE      // 当前变量的逃逸原因
 
 	whys_len := len(whys) - 1 // whys的长度减一，用于索引
+
+	// 当前节点是不是闭包
+	_, escape_is_closure := (whys[0].srcLoc.n).(*ir.ClosureExpr) // 表示当前逃逸的变量是闭包
 
 	// 先找是不是有其他已知的逃逸节点
 	ss := b.find_escape(whys[whys_len].dstLoc)
@@ -423,6 +449,12 @@ func (b *batch) countAll(whys []one_why) {
 		// 不为空，则能找到
 		haven_find_escape = true
 		escape_reason = ss.why
+
+		// 如果找到是E_CO_CLOSURE而当前逃逸的不是CLOSURE，说明当前节点是因为协程而逃逸的
+		if escape_reason == E_CO_CLOSURE && !escape_is_closure {
+			escape_reason = E_COROUTINE
+		}
+
 	} else {
 		/*	第一步确定左值的类型
 			   	合法左值有6种类型：
@@ -436,18 +468,36 @@ func (b *batch) countAll(whys []one_why) {
 				除了Name以外的其他表达式都有一个节点X Node，因此只需要判断出是否是ir.Name即可
 		*/
 
+		// 判断是不是闭包类型的
+		if escape_is_closure {
+			// 认为是闭包类型的，记录
+			if this_stmt_is_go_defer {
+				// 协程调用导致的闭包
+				// 如果当前分析的语句是go或者defer语句，且这个语句对于closure逃逸
+				// 由于 go func() 这样的语句，func会全部转化为闭包，因此后面只要对这个闭包逃逸的就是coroutine造成的逃逸
+				escape_reason = E_CO_CLOSURE
+				haven_find_escape = true
+
+				this_stmt_is_go_defer = false
+			} else {
+				// 普通闭包
+				escape_reason = E_CLOSURE
+				haven_find_escape = true
+			}
+		}
+
 		// 判断是不是堆溢出类型的，如果是，那么则可能是引用全局变量导致的
 		// 如果后面找不到其他的溢出可能，那么就是heap
 		var haven_heap_escape bool = false // 表示有堆溢出的情况
 		if whys[whys_len].dstLoc == &b.heapLoc {
 			haven_heap_escape = true
 		}
-		// 全局变量是extern的，赋值目前可能存在2种，一种是AssignStmt，一种是assignListStmt
-		// 先进行类型判断
+
+		// 堆逃逸的情形分为全局引用和间接引用两种，合在一起判断，均为赋值语句。
+		// 赋值目前可能存在2种，一种是AssignStmt，一种是assignListStmt
 		if haven_heap_escape {
 			ass1, ok1 := (*whys[whys_len].where).(*ir.AssignStmt)
 			ass2, ok2 := (*whys[whys_len].where).(*ir.AssignListStmt)
-
 			if ok1 {
 				lhs_name := b.find_Node_Name(&ass1.X) // 递归取变量名  x[0].i 取 x
 				// 先判断左值间接类型，再判断全局变量
@@ -457,7 +507,7 @@ func (b *batch) countAll(whys []one_why) {
 					escape_reason = E_INDIRECT
 					haven_find_escape = true
 
-				} else if lhs_name.Class == ir.PEXTERN {
+				} else if lhs_name.Class == ir.PEXTERN { //再判断全局变量
 					escape_reason = E_GLOBAL
 					haven_find_escape = true
 				}
