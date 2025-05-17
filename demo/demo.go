@@ -5,20 +5,171 @@ var sink interface{}
 var p1 *int
 var p2 **int
 
+
+type TB interface {
+	Cleanup(func())
+	Error(args ...any)
+	Errorf(format string, args ...any)
+	Fail()
+	FailNow()
+	Failed() bool
+	Fatal(args ...any)
+	Fatalf(format string, args ...any)
+	Logf(format string, args ...any)
+	Name() string
+	TempDir() string
+	Helper()
+	Skip(args ...any)
+}
+type testingTBProthesis struct {
+	name     string
+	failed   bool
+	cleanups []func()
+}
+func (t *testingTBProthesis) Helper() {
+	// Ignored
+}
+
+func (t *testingTBProthesis) Skip(args ...any) {
+	t.Log(append([]any{"Skipping due to: "}, args...))
+}
+
+func (t *testingTBProthesis) Cleanup(f func()) {
+	t.cleanups = append(t.cleanups, f)
+}
+
+func (t *testingTBProthesis) Error(args ...any) {
+
+	t.Fail()
+}
+
+func (t *testingTBProthesis) Errorf(format string, args ...any) {
+
+	t.Fail()
+}
+
+func (t *testingTBProthesis) Fail() {
+	t.failed = true
+}
+
+func (t *testingTBProthesis) FailNow() {
+	t.failed = true
+	panic("FailNow() called")
+}
+
+func (t *testingTBProthesis) Failed() bool {
+	return t.failed
+}
+
+func (t *testingTBProthesis) Fatal(args ...any) {
+
+}
+
+func (t *testingTBProthesis) Fatalf(format string, args ...any) {
+
+}
+
+func (t *testingTBProthesis) Logf(format string, args ...any) {
+
+}
+
+func (t *testingTBProthesis) Log(args ...any) {
+
+}
+
+func (t *testingTBProthesis) Name() string {
+	return t.name
+}
+
+func (t *testingTBProthesis) TempDir() string {
+return t.name
+}
+
+func (t *testingTBProthesis) close() {
+	for i := len(t.cleanups) - 1; i >= 0; i-- {
+		t.cleanups[i]()
+	}
+}
+func NewTestingTBProthesis(name string) (tb TB, closef func()) {
+	testtb := &testingTBProthesis{name: name}
+	return testtb, testtb.close
+}
+
+
+/*
+func referencedByGlobal() {
+	i := 10
+	p := &i
+	sink, p2 = p, &p
+}
+
+func returnAddress() **int {
+	i := 10
+	p1 := &i
+	p2 := &p1
+	return p2
+}
+
+func variableSize() {
+	x := 10
+	// 切片的大小在运行时确定，可能会逃逸到堆上
+	slice := make([]int, x)
+	_ = slice
+}
+
+func outerLoopReference() {
+	var outerRef *int
+
+	for i := 0; i < 10; i++ {
+		i_testOuter := i
+		outerRef = &i_testOuter // 循环内部的变量 num 被外部引用，num 会逃逸到堆上
+	}
+
+	_ = outerRef
+}
+
+func bigVariable() {
+	bigArray := [1000000]int{}
+	_ = bigArray
+}
+
+func indirect() {
+	var p **int
+	var i int
+	*p = &i
+}
+
+func f(d *int) {
+	*d = *d + 1
+	_ = d
+}
+
+func GoRoutine() {
+	x := 1
+	go f(&x)
+}
+
+/*
+func addr() {
+	i := new(int)
+	p1 = i
+}
+
+
+func foo(p *int) {
+	p1 = p
+}
+func main() {
+	i := 10
+	foo(&i)
+}
+
 // func makeSlice3() {
 // 	s := make([]int, 10) // 不逃逸
 // 	sink = s[0] + s[1]
 // }
 /*
-func returnAddress() **int {
-	// i_testAddr := 10
-	// p := &i_testAddr
-	// return p // 局部变量 i 的地址被返回，i 会逃逸到堆上
-	i := 10
-	p1 := &i
-	p2 := &p1
-	return p2 // 局部变量 i 的地址被返回，i 会逃逸到堆上
-}
+
 */
 /*
 func f(d *int) {
@@ -37,6 +188,7 @@ func main() {
 }
 
 */
+/*
 func main() {
 	var result int
 	ch := make(chan int)
@@ -45,6 +197,11 @@ func main() {
 
 	_ = result
 	//fmt.Println(result)
+}
+*/
+/*
+func directorySet(pp **int, nt *int) {
+	*(**int)(pp) = nt
 }
 
 /*
@@ -147,30 +304,10 @@ func main() {
 // }
 */
 /*
-func outerLoopReference() {
-	var outerRef *int
 
-	for i := 0; i < 10; i++ {
-		i_testOuter := i
-		outerRef = &i_testOuter // 循环内部的变量 num 被外部引用，num 会逃逸到堆上
-	}
-
-	_ = outerRef
-}
-
-// func bigVariable() {
-// 	// 定义一个非常大的数组，可能会导致栈溢出，因此会逃逸到堆上
-// 	bigArray := [1000000]int{}
-// 	_ = bigArray
-// }
 
 /*
-func variableSize() {
-	x := 10
-	// 切片的大小在运行时确定，可能会逃逸到堆上
-	slice := make([]int, x)
-	_ = slice
-}
+
 
 // func paramPointee(p *int) {
 // 	sink = p // 参数 p 指向的变量被全局变量引用，该变量会逃逸到堆上

@@ -6,6 +6,7 @@ package escape
 
 import (
 	"fmt"
+	"os"
 
 	"cmd/compile/internal/base"
 	"cmd/compile/internal/ir"
@@ -120,11 +121,32 @@ type escape struct {
 
 func Funcs(all []*ir.Func) {
 	ir.VisitFuncsBottomUp(all, Batch)
+	// 然后输出所有的统计信息
+	output_one_package_countAll()
+}
+
+func output_one_package_countAll() {
+	file, err := os.OpenFile("countAll.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return
+	}
+	defer file.Close()
+
+	file_order := "return too_large dynamic_alloc global outerloop indirect coroutine callparam mapindex unknown"
+	file_num := fmt.Sprintf("*****#10# %d %d %d %d %d %d %d %d %d %d #",
+		ac.c_retrun, ac.c_too_large, ac.c_dynamic_alloc, ac.c_global_ref,
+		ac.c_outerloop_ref, ac.c_indirect_ref, ac.c_coroutine, ac.c_callparam,
+		ac.c_mapindex, ac.c_unknown)
+
+	fmt.Fprintf(file, "%s\n", file_num)          // log文件
+	fmt.Printf("%s\n%s\n", file_order, file_num) // stdout
 }
 
 // Batch performs escape analysis on a minimal batch of
 // functions.
 func Batch(fns []*ir.Func, recursive bool) {
+
 	// 开始判断新的函数
 	// 重置变量
 	whys = []one_why{}
