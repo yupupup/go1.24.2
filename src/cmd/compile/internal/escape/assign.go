@@ -50,6 +50,7 @@ func (e *escape) addr(n ir.Node) hole {
 		e.mutate(n.X)
 	case ir.OINDEXMAP: //map[]
 		n := n.(*ir.IndexExpr)
+		lvalue_is_map = true
 		e.discard(n.X)
 		e.assignHeap(n.Index, "key of map put", n)
 	}

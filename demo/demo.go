@@ -1,100 +1,28 @@
 package demo
 
-var sink interface{}
+//var sink interface{}
 
 var p1 *int
 var p2 **int
 
 
-type TB interface {
-	Cleanup(func())
-	Error(args ...any)
-	Errorf(format string, args ...any)
-	Fail()
-	FailNow()
-	Failed() bool
-	Fatal(args ...any)
-	Fatalf(format string, args ...any)
-	Logf(format string, args ...any)
-	Name() string
-	TempDir() string
-	Helper()
-	Skip(args ...any)
+func mapIndex() {
+	map_test := make(map[string]int, 10)
+	x := "11"
+	//x = x + "test"
+	map_test[x] = 19
 }
-type testingTBProthesis struct {
-	name     string
-	failed   bool
-	cleanups []func()
-}
-func (t *testingTBProthesis) Helper() {
-	// Ignored
+var sink *int
+
+func callee(p *int){
+	sink = p
 }
 
-func (t *testingTBProthesis) Skip(args ...any) {
-	t.Log(append([]any{"Skipping due to: "}, args...))
+func call(){
+	x := 10
+	p := &x
+	callee(p)
 }
-
-func (t *testingTBProthesis) Cleanup(f func()) {
-	t.cleanups = append(t.cleanups, f)
-}
-
-func (t *testingTBProthesis) Error(args ...any) {
-
-	t.Fail()
-}
-
-func (t *testingTBProthesis) Errorf(format string, args ...any) {
-
-	t.Fail()
-}
-
-func (t *testingTBProthesis) Fail() {
-	t.failed = true
-}
-
-func (t *testingTBProthesis) FailNow() {
-	t.failed = true
-	panic("FailNow() called")
-}
-
-func (t *testingTBProthesis) Failed() bool {
-	return t.failed
-}
-
-func (t *testingTBProthesis) Fatal(args ...any) {
-
-}
-
-func (t *testingTBProthesis) Fatalf(format string, args ...any) {
-
-}
-
-func (t *testingTBProthesis) Logf(format string, args ...any) {
-
-}
-
-func (t *testingTBProthesis) Log(args ...any) {
-
-}
-
-func (t *testingTBProthesis) Name() string {
-	return t.name
-}
-
-func (t *testingTBProthesis) TempDir() string {
-return t.name
-}
-
-func (t *testingTBProthesis) close() {
-	for i := len(t.cleanups) - 1; i >= 0; i-- {
-		t.cleanups[i]()
-	}
-}
-func NewTestingTBProthesis(name string) (tb TB, closef func()) {
-	testtb := &testingTBProthesis{name: name}
-	return testtb, testtb.close
-}
-
 
 /*
 func referencedByGlobal() {
