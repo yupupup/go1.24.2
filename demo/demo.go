@@ -5,13 +5,27 @@ package demo
 var p1 *int
 var p2 **int
 
+/*
+var sink interface{}
 
+func f() {
+	i := 0
+	p0 := &i
+	p1 := &p0
+	p2 := &p1
+	sink = &p2
+}
+
+*/
+/*
 func mapIndex() {
 	map_test := make(map[string]int, 10)
 	x := "11"
-	//x = x + "test"
+	x = x + "test"
 	map_test[x] = 19
 }
+	
+/*
 var sink *int
 
 func callee(p *int){
@@ -30,7 +44,7 @@ func referencedByGlobal() {
 	p := &i
 	sink, p2 = p, &p
 }
-
+*/
 func returnAddress() **int {
 	i := 10
 	p1 := &i
@@ -44,7 +58,19 @@ func variableSize() {
 	slice := make([]int, x)
 	_ = slice
 }
+/*
+var sink interface{}
 
+func callee(p *int) {
+	sink = p
+}
+
+func caller() {
+	i := 0 // ERROR "moved to heap: i$"
+	callee(&i)
+}
+
+/*
 func outerLoopReference() {
 	var outerRef *int
 
@@ -66,7 +92,7 @@ func indirect() {
 	var i int
 	*p = &i
 }
-
+/*
 func f(d *int) {
 	*d = *d + 1
 	_ = d

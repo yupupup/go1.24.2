@@ -8,9 +8,9 @@ import (
 	"cmd/compile/internal/base"
 	"cmd/compile/internal/ir"
 	"cmd/compile/internal/logopt"
+	"cmd/compile/internal/types"
 	"cmd/internal/src"
 	"fmt"
-	"reflect"
 	"strings"
 )
 
@@ -301,6 +301,7 @@ var ac = all_count{
 	c_unknown: 0,
 }
 
+//记录whys信息，并摘出逃逸节点到escape_paths
 func (b *batch) recordInfo(dstLoc, srcLoc *location, notes *note) {
 	for n := notes; n != nil; n = n.next {
 		clonedWhy := strings.Clone(n.why) // 完全复制字节，不再共享内存
@@ -321,6 +322,8 @@ func (b *batch) recordInfo(dstLoc, srcLoc *location, notes *note) {
 		whys = append(whys, entry)
 	}
 
+	//whys记录a->b,b->c，escape_paths把每次whys的目的节点记录下来，即a,b,c
+
 	// 记录逃逸的节点
 	if len(escape_paths) == 0 {
 		escape_paths = append(escape_paths, srcLoc, dstLoc)
@@ -330,53 +333,54 @@ func (b *batch) recordInfo(dstLoc, srcLoc *location, notes *note) {
 
 }
 
-func (b *batch) recordEscapeInfo(srcLoc, dstLoc *location, whyx ESCAPE_TYPE) {
+//输出打印逃逸信息，记录逃逸信息到one_escape_func
+func (b *batch) recordEscapeInfo(srcLoc, dstLoc *location, whyx ESCAPE_TYPE, bytesize int64, escapetype string) {
 
 	// 然后对不同种类进行记录和输出
 	switch whyx {
 	case E_RETURN:
 		ac.c_retrun++
-		fmt.Printf("my return escape count %d \n", ac.c_retrun)
+		fmt.Printf("my return escape count %d , escape size: %d , escape type: %s\n", ac.c_retrun, bytesize, escapetype)
 	case E_LAREG:
 		ac.c_too_large++
-		fmt.Printf("my too large escape count %d\n", ac.c_too_large)
+		fmt.Printf("my too large escape count %d , escape size: %d , escape type: %s\n", ac.c_too_large, bytesize, escapetype)
 	case E_DYNAMIC:
 		ac.c_dynamic_alloc++
-		fmt.Printf("my dynamic alloc escape count %d\n", ac.c_dynamic_alloc)
+		fmt.Printf("my dynamic alloc escape count %d , escape size: %d , escape type: %s\n", ac.c_dynamic_alloc, bytesize, escapetype)
 	case E_GLOBAL:
 		ac.c_global_ref++
-		fmt.Printf("my global ref escape count %d\n", ac.c_global_ref)
+		fmt.Printf("my global ref escape count %d , escape size: %d , escape type: %s\n", ac.c_global_ref, bytesize, escapetype)
 	case E_OUTERLOOP:
 		ac.c_outerloop_ref++
-		fmt.Printf("my outerloop ref escape count %d\n", ac.c_outerloop_ref)
+		fmt.Printf("my outerloop ref escape count %d , escape size: %d , escape type: %s\n", ac.c_outerloop_ref, bytesize, escapetype)
 	case E_INDIRECT:
 		ac.c_indirect_ref++
-		fmt.Printf("my indirect ref escape count %d\n", ac.c_indirect_ref)
+		fmt.Printf("my indirect ref escape count %d , escape size: %d , escape type: %s\n", ac.c_indirect_ref, bytesize, escapetype)
 	case E_CLOSURE:
 		// 这里就是普通的closure逃逸
 		ac.c_closure++
-		fmt.Printf("my clousure ref escape count %d\n", ac.c_closure)
+		fmt.Printf("my clousure ref escape count %d , escape size: %d , escape type: %s\n", ac.c_closure, bytesize, escapetype)
 	case E_COROUTINE:
 		ac.c_coroutine++
-		fmt.Printf("my coroutine ref escape count %d\n", ac.c_coroutine)
+		fmt.Printf("my coroutine ref escape count %d , escape size: %d , escape type: %s\n", ac.c_coroutine, bytesize, escapetype)
 	case E_CO_CLOSURE:
 		// 这里的闭包是因为协程调用导致的，所有后面对这个逃逸的，一定是协程导致的
 		ac.c_co_closure++
-		fmt.Printf("my coroutine_closure ref escape count %d\n", ac.c_co_closure)
+		fmt.Printf("my coroutine_closure ref escape count %d , escape size: %d , escape type: %s\n", ac.c_co_closure, bytesize, escapetype)
 	case E_FUNCPARAM:
 		ac.c_func_param++
-		fmt.Printf("my func_param ref escape count %d\n", ac.c_func_param)
+		fmt.Printf("my func_param ref escape count %d , escape size: %d , escape type: %s\n", ac.c_func_param, bytesize, escapetype)
 	case E_CALLPARAM:
 		ac.c_callparam++
-		fmt.Printf("my callparam ref escape count %d\n", ac.c_callparam)
+		fmt.Printf("my callparam ref escape count %d , escape size: %d , escape type: %s\n", ac.c_callparam, bytesize, escapetype)
 	case E_MAPINDEX:
 		ac.c_mapindex++
-		fmt.Printf("my mapindex ref escape count %d\n", ac.c_mapindex)
+		fmt.Printf("my mapindex ref escape count %d , escape size: %d , escape type: %s\n", ac.c_mapindex, bytesize, escapetype)
 
 	case E_UNKNOWN:
 		// 未知类型
 		ac.c_unknown++
-		fmt.Printf("my unKnown escape count %d\n", ac.c_unknown)
+		fmt.Printf("my unKnown escape count %d , escape size: %d , escape type: %s\n", ac.c_unknown, bytesize, escapetype)
 	default:
 		fmt.Printf("switch defalut\n")
 	}
@@ -484,22 +488,41 @@ func (b *batch) find_Node_Name(n *ir.Node) *ir.Name {
 	return nil
 }
 
+
 // 确定右值是不是取地址类型的
 
 // storesAddress 判断 v 的底层种类是否为引用或指针类型
-func (b *batch) storesAddress(v interface{}) bool {
-	t := reflect.TypeOf(v)
-	if t == nil {
-		return false // nil 接口
-	}
-	switch t.Kind() {
-	case reflect.Ptr, reflect.UnsafePointer,
-		reflect.Slice, reflect.Map,
-		reflect.Chan, reflect.Func,
-		reflect.Interface:
+func (b *batch) storesAddress(v *ir.Node) bool {
+	//t := reflect.TypeOf(v)
+	// if t == nil {
+	// 	return false // nil 接口
+	// }
+	switch (*v).Type().Kind() {
+	case types.TPTR,types.TUNSAFEPTR,
+	types.TUINTPTR,types.TMAP,
+	types.TCHAN,types.TSLICE,
+	types.TINTER,types.TFUNC:
 		return true
+	// case reflect.Ptr, reflect.UnsafePointer,
+	// 	reflect.Slice, reflect.Map,
+	// 	reflect.Chan, reflect.Func,
+	// 	reflect.Interface:
+	//	return true
 	default:
 		return false
+	}
+}
+
+//用于输出逃逸变量的三种类型，map为1，slice为2，其余为3
+func (b *batch) judgeType(v ir.Node) string {
+
+	switch v.Type().Kind() {
+	case types.TMAP:
+		return "map"
+	case types.TSLICE:
+		return "slice"
+	default:
+		return "oname"
 	}
 }
 
@@ -557,7 +580,7 @@ func (b *batch) countAll() {
 	}
 
 	if !is_parameter_leaks && whys[whys_len].why == "call parameter" {
-		b.recordEscapeInfo(escape_paths[0], escape_paths[len(escape_paths)-1], E_CALLPARAM)
+		b.recordEscapeInfo(escape_paths[0], escape_paths[len(escape_paths)-1], E_CALLPARAM, escape_paths[0].n.Type().Size(), b.judgeType(escape_paths[0].n))
 		is_not_1_edge = false
 		return
 	}
@@ -689,16 +712,26 @@ func (b *batch) countAll() {
 			var arvalues []ir.Node
 			if ok1 {
 				arvalues = ass.Results
-			} else {
+				// for _, arvalue := range ass.Results{
+				// 	//arvalues[i].n = arvalue
+				// 	arvalues = append(arvalues, &location{n: arvalue})
+				// }
+			} else {//如果不是return类型，判断是以下三种类型（以下三种语句右值为取地址时，归结为return）
 				ar1, rok1 := (*whys[whys_len].where).(*ir.AssignStmt)
 				ar2, rok2 := (*whys[whys_len].where).(*ir.AssignListStmt)
 				ar3, rok3 := (*whys[whys_len].where).(*ir.AssignOpStmt)
 
-				if rok1 {
+				//var loc *location//临时location
+				if rok1 {//arvalues存右值
 					arvalues = append(arvalues, ar1.Y)
 				} else if rok2 {
 					arvalues = ar2.Rhs
+					// for _, ar2R := range ar2.Rhs{
+					// 	//loc.n = ar2R
+					// 	arvalues = append(arvalues, &location{n: ar2R})
+					// }
 				} else if rok3 {
+					//loc.n = ar3.Y
 					arvalues = append(arvalues, ar3.Y)
 				}
 			}
@@ -760,7 +793,7 @@ func (b *batch) countAll() {
 	}
 
 	// 记录逃逸原因
-	b.recordEscapeInfo(escape_paths[0], escape_paths[len(escape_paths)-1], escape_reason)
+	b.recordEscapeInfo(escape_paths[0], escape_paths[len(escape_paths)-1], escape_reason, escape_paths[0].n.Type().Size(),b.judgeType(escape_paths[0].n))
 
 	is_not_1_edge = false
 }
