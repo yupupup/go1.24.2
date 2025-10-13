@@ -341,6 +341,19 @@ func (e *escape) copyExpr(pos src.XPos, expr ir.Node, init *ir.Nodes) *ir.Name {
 	return tmp
 }
 
+var escTypeToStr = map[ESCAPE_TYPE]string{
+	E_RETURN:    "E_RETURN",
+	E_LAREG:     "E_LAREG",
+	E_DYNAMIC:   "E_DYNAMIC",
+	E_GLOBAL:    "E_GLOBAL",
+	E_INDIRECT:  "E_INDIRECT",
+	E_OUTERLOOP: "E_OUTERLOOP",
+	E_COROUTINE: "E_COROUTINE",
+	E_MAPINDEX:  "E_MAPINDEX",
+}
+
+
+
 // tagHole returns a hole for evaluating an argument passed to param.
 // ks should contain the holes representing where the function
 // callee's results flows. fn is the statically-known callee function,
@@ -363,25 +376,67 @@ func (e *escape) tagHole(ks []hole, fn *ir.Name, param *types.Field) hole {
 	var tagKs []hole
 	esc := parseLeaks(param.Note)
 
+	escRsn := E_UNKNOWN
+
+	//reason := esc.getReason()
+
 	if x := esc.Heap(); x >= 0 {
 		tagKs = append(tagKs, e.heapHole().shift(x))
+		escRsn = esc.getReason(leakHeap)
 	}
 	if x := esc.Mutator(); x >= 0 {
 		tagKs = append(tagKs, e.mutatorHole().shift(x))
+		escRsn = esc.getReason(leakMutator)
 	}
 	if x := esc.Callee(); x >= 0 {
 		tagKs = append(tagKs, e.calleeHole().shift(x))
+		escRsn = esc.getReason(leakCallee)
 	}
 
 	if ks != nil {
 		for i := 0; i < numEscResults; i++ {
 			if x := esc.Result(i); x >= 0 {
 				tagKs = append(tagKs, ks[i].shift(x))
+				escRsn = esc.getReason(leakResult0 + i)
 			}
 		}
 	}
 
-	return e.teeHole(tagKs...)
+
+	// var escStr string
+
+	// switch escRsn {
+	// case E_RETURN:
+	// 	escStr = "E_RETURN"
+	// case E_LAREG:
+	// 	escStr = "E_LAREG"
+	// case E_DYNAMIC:
+	// 	escStr = "E_DYNAMIC"
+	// case E_OUTERLOOP:
+	// 	escStr = "E_OUTERLOOP"
+	// case E_COROUTINE:
+	// 	escStr = "E_COROUTINE"
+	// case E_MAPINDEX:
+	// 	escStr = "E_MAPINDEX"
+	// case E_INDIRECT:
+	// 	escStr = "E_INDIRECT"
+	// case E_GLOBAL:
+	// 	escStr = "E_GLOBAL"
+
+	// default:
+	// 	escStr = "E_UNKNOWN"
+	// }
+
+
+
+	//fmt.Printf("param %v escapes because: %s\n", param, escTypeToStr[escRsn])
+
+	//return e.teeHole(tagKs...).note(param.Nname.(*ir.Name), escStr)
+	if param.Nname != nil && escRsn != E_UNKNOWN {
+    return e.teeHole(tagKs...).note(param.Nname.(*ir.Name), escTypeToStr[escRsn])
+}
+	return e.teeHole(tagKs...) // 没有名字就不加注解
+
 }
 
 func hasNonStringPointers(t *types.Type) bool {

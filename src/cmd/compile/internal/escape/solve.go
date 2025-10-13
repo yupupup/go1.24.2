@@ -134,6 +134,7 @@ func (b *batch) walkOne(root *location, walkgen uint32, enqueue func(*location))
 						fmt.Printf("%s: parameter %v leaks to %s with derefs=%d:\n", base.FmtPos(l.n.Pos()), l.n, b.explainLoc(root), derefs)
 					}
 					is_parameter_leaks = true
+					EscReason = E_UNKNOWN
 					explanation := b.explainPath(root, l)
 					is_parameter_leaks = false
 					if logopt.Enabled() {
@@ -142,13 +143,13 @@ func (b *batch) walkOne(root *location, walkgen uint32, enqueue func(*location))
 							fmt.Sprintf("parameter %v leaks to %s with derefs=%d", l.n, b.explainLoc(root), derefs), explanation)
 					}
 				}
-				l.leakTo(root, derefs)
+				l.leakTo(root, derefs, EscReason)
 			}
 			if root.hasAttr(attrMutates) {
-				l.paramEsc.AddMutator(derefs)
+				l.paramEsc.AddMutator(derefs, EscReason)
 			}
 			if root.hasAttr(attrCalls) {
-				l.paramEsc.AddCallee(derefs)
+				l.paramEsc.AddCallee(derefs, EscReason)
 			}
 		}
 
@@ -227,6 +228,8 @@ var output_flow bool = true            // 是否输出详细的flow
 var is_parameter_leaks bool = false // 当前变量是不是不用统计的函数参数类型
 var lvalue_is_map bool = false      //左边变量是一个
 
+var EscReason ESCAPE_TYPE//用于向leaks.go传递逃逸类型
+
 type one_why struct {
 	why     string    // 一个why
 	where   *ir.Node  // 哪个语句发生了逃逸
@@ -254,13 +257,13 @@ const (
 	E_GLOBAL                        // 全局变量引用
 	E_INDIRECT                      // 间接
 	E_OUTERLOOP                     // 外层循环
-	E_FUNCPARAM                     // 函数调用
-	E_CALLPARAM                     // 被调用导致逃逸
-	E_CLOSURE                       // 闭包
+	//E_FUNCPARAM                     // 函数调用
 	E_COROUTINE                     // 协程
-	E_CO_CLOSURE                    // 协程调用所需要的闭包
 	E_MAPINDEX                      // MapIndex类型的
+	E_CALLPARAM                     // 被调用导致逃逸
 
+	E_CLOSURE                       // 闭包
+	E_CO_CLOSURE                    // 协程调用所需要的闭包
 	E_UNKNOWN
 	E_NOT // 没找到逃逸
 )
@@ -340,49 +343,49 @@ func (b *batch) recordEscapeInfo(srcLoc, dstLoc *location, whyx ESCAPE_TYPE, byt
 	switch whyx {
 	case E_RETURN:
 		ac.c_retrun++
-		fmt.Printf("my return escape count %d , escape size: %d , escape type: %s\n", ac.c_retrun, bytesize, escapetype)
+		fmt.Printf("\033[32mmy return escape count %d , escape size: %d , escape type: %s\033[0m\n", ac.c_retrun, bytesize, escapetype)
 	case E_LAREG:
 		ac.c_too_large++
-		fmt.Printf("my too large escape count %d , escape size: %d , escape type: %s\n", ac.c_too_large, bytesize, escapetype)
+		fmt.Printf("\033[32mmy too large escape count %d , escape size: %d , escape type: %s\033[0m\n", ac.c_too_large, bytesize, escapetype)
 	case E_DYNAMIC:
 		ac.c_dynamic_alloc++
-		fmt.Printf("my dynamic alloc escape count %d , escape size: %d , escape type: %s\n", ac.c_dynamic_alloc, bytesize, escapetype)
+		fmt.Printf("\033[32mmy dynamic alloc escape count %d , escape size: %d , escape type: %s\033[0m\n", ac.c_dynamic_alloc, bytesize, escapetype)
 	case E_GLOBAL:
 		ac.c_global_ref++
-		fmt.Printf("my global ref escape count %d , escape size: %d , escape type: %s\n", ac.c_global_ref, bytesize, escapetype)
+		fmt.Printf("\033[32mmy global ref escape count %d , escape size: %d , escape type: %s\033[0m\n", ac.c_global_ref, bytesize, escapetype)
 	case E_OUTERLOOP:
 		ac.c_outerloop_ref++
-		fmt.Printf("my outerloop ref escape count %d , escape size: %d , escape type: %s\n", ac.c_outerloop_ref, bytesize, escapetype)
+		fmt.Printf("\033[32mmy outerloop ref escape count %d , escape size: %d , escape type: %s\033[0m\n", ac.c_outerloop_ref, bytesize, escapetype)
 	case E_INDIRECT:
 		ac.c_indirect_ref++
-		fmt.Printf("my indirect ref escape count %d , escape size: %d , escape type: %s\n", ac.c_indirect_ref, bytesize, escapetype)
+		fmt.Printf("\033[32mmy indirect ref escape count %d , escape size: %d , escape type: %s\033[0m\n", ac.c_indirect_ref, bytesize, escapetype)
 	case E_CLOSURE:
 		// 这里就是普通的closure逃逸
 		ac.c_closure++
-		fmt.Printf("my clousure ref escape count %d , escape size: %d , escape type: %s\n", ac.c_closure, bytesize, escapetype)
+		fmt.Printf("\033[32mmy clousure ref escape count %d , escape size: %d , escape type: %s\033[0m\n", ac.c_closure, bytesize, escapetype)
 	case E_COROUTINE:
 		ac.c_coroutine++
-		fmt.Printf("my coroutine ref escape count %d , escape size: %d , escape type: %s\n", ac.c_coroutine, bytesize, escapetype)
+		fmt.Printf("\033[32mmy coroutine ref escape count %d , escape size: %d , escape type: %s\033[0m\n", ac.c_coroutine, bytesize, escapetype)
 	case E_CO_CLOSURE:
 		// 这里的闭包是因为协程调用导致的，所有后面对这个逃逸的，一定是协程导致的
 		ac.c_co_closure++
-		fmt.Printf("my coroutine_closure ref escape count %d , escape size: %d , escape type: %s\n", ac.c_co_closure, bytesize, escapetype)
-	case E_FUNCPARAM:
-		ac.c_func_param++
-		fmt.Printf("my func_param ref escape count %d , escape size: %d , escape type: %s\n", ac.c_func_param, bytesize, escapetype)
-	case E_CALLPARAM:
-		ac.c_callparam++
-		fmt.Printf("my callparam ref escape count %d , escape size: %d , escape type: %s\n", ac.c_callparam, bytesize, escapetype)
+	//	fmt.Printf("my coroutine_closure ref escape count %d , escape size: %d , escape type: %s\n", ac.c_co_closure, bytesize, escapetype)
+	// case E_FUNCPARAM:
+	// 	ac.c_func_param++
+	// 	fmt.Printf("my func_param ref escape count %d , escape size: %d , escape type: %s\n", ac.c_func_param, bytesize, escapetype)
+	// case E_CALLPARAM:
+	// 	ac.c_callparam++
+	// 	fmt.Printf("\033[32mmy callparam ref escape count %d , escape size: %d , escape type: %s\n", ac.c_callparam, bytesize, escapetype)
 	case E_MAPINDEX:
 		ac.c_mapindex++
-		fmt.Printf("my mapindex ref escape count %d , escape size: %d , escape type: %s\n", ac.c_mapindex, bytesize, escapetype)
+		fmt.Printf("\033[32mmy mapindex ref escape count %d , escape size: %d , escape type: %s\033[0m\n", ac.c_mapindex, bytesize, escapetype)
 
 	case E_UNKNOWN:
 		// 未知类型
 		ac.c_unknown++
-		fmt.Printf("my unKnown escape count %d , escape size: %d , escape type: %s\n", ac.c_unknown, bytesize, escapetype)
+		fmt.Printf("\033[32mmy unKnown escape count %d , escape size: %d , escape type: %s\033[0m\n", ac.c_unknown, bytesize, escapetype)
 	default:
-		fmt.Printf("switch defalut\n")
+		fmt.Printf("\033[32mswitch defalut\033[0m\n")
 	}
 
 	clonedSrcName := b.explainLoc(srcLoc)
@@ -565,6 +568,17 @@ func (b *batch) rvalue_is_addr(n *ir.Node) bool {
 	return false
 }
 
+var strToEscType = map[string]ESCAPE_TYPE{
+	"E_RETURN":    E_RETURN,
+	"E_LAREG":     E_LAREG,
+	"E_DYNAMIC":   E_DYNAMIC,
+	"E_GLOBAL":    E_GLOBAL,
+	"E_INDIRECT":  E_INDIRECT,
+	"E_OUTERLOOP": E_OUTERLOOP,
+	"E_COROUTINE": E_COROUTINE,
+	"E_MAPINDEX":  E_MAPINDEX,
+}
+
 // 遍历whys，计算一个变量逃逸的情况
 func (b *batch) countAll() {
 	//fmt.Printf("Start Count\n")
@@ -579,16 +593,17 @@ func (b *batch) countAll() {
 		return
 	}
 
-	if !is_parameter_leaks && whys[whys_len].why == "call parameter" {
-		b.recordEscapeInfo(escape_paths[0], escape_paths[len(escape_paths)-1], E_CALLPARAM, escape_paths[0].n.Type().Size(), b.judgeType(escape_paths[0].n))
+	if !is_parameter_leaks && whys_len > 0 && whys[whys_len-1].why == "call parameter" {
+		b.recordEscapeInfo(escape_paths[0], escape_paths[len(escape_paths)-1], strToEscType[whys[whys_len].why], escape_paths[0].n.Type().Size(), b.judgeType(escape_paths[0].n))
 		is_not_1_edge = false
+		//EscReason = E_CALLPARAM
 		return
 	}
 
 	if is_parameter_leaks {
 		// 如果这个是还是函数参数的，直接不管
 		is_not_1_edge = false
-		return
+		//return
 	}
 
 	// 当前节点是不是闭包
@@ -792,9 +807,11 @@ func (b *batch) countAll() {
 		}
 	}
 
+	EscReason = escape_reason//更新逃逸原因，传递给leaks.go
 	// 记录逃逸原因
-	b.recordEscapeInfo(escape_paths[0], escape_paths[len(escape_paths)-1], escape_reason, escape_paths[0].n.Type().Size(),b.judgeType(escape_paths[0].n))
-
+	if !is_parameter_leaks {
+		b.recordEscapeInfo(escape_paths[0], escape_paths[len(escape_paths)-1], escape_reason, escape_paths[0].n.Type().Size(),b.judgeType(escape_paths[0].n))
+	}
 	is_not_1_edge = false
 }
 

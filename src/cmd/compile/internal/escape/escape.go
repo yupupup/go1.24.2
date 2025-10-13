@@ -136,8 +136,8 @@ func output_one_package_countAll() {
 	}
 	defer file.Close()
 
-	file_order := "return too_large dynamic_alloc global outerloop indirect coroutine callparam mapindex unknown"
-	file_num := fmt.Sprintf("*****#10# %d %d %d %d %d %d %d %d %d %d #",
+	file_order := "\033[32mreturn too_large dynamic_alloc global outerloop indirect coroutine callparam mapindex unknown\033[0m"
+	file_num := fmt.Sprintf("\033[32m*****#10# %d %d %d %d %d %d %d %d %d %d #\033[0m",
 		ac.c_retrun, ac.c_too_large, ac.c_dynamic_alloc, ac.c_global_ref,
 		ac.c_outerloop_ref, ac.c_indirect_ref, ac.c_coroutine, ac.c_callparam,
 		ac.c_mapindex, ac.c_unknown)
@@ -202,6 +202,7 @@ func (b *batch) with(fn *ir.Func) *escape {
 	}
 }
 
+//建节点
 func (b *batch) initFunc(fn *ir.Func) {
 	e := b.with(fn)
 	if fn.Esc() != escFuncUnknown {
@@ -231,6 +232,7 @@ func (b *batch) initFunc(fn *ir.Func) {
 	}
 }
 
+//建边
 func (b *batch) walkFunc(fn *ir.Func) {
 	e := b.with(fn)
 	fn.SetEsc(escFuncStarted)
@@ -449,13 +451,13 @@ func (b *batch) paramTag(fn *ir.Func, narg int, f *types.Field) string {
 			if diagnose && f.Sym != nil {
 				base.WarnfAt(f.Pos, "%v does not escape", name())
 			}
-			esc.AddMutator(0)
-			esc.AddCallee(0)
+			esc.AddMutator(0, EscReason)
+			esc.AddCallee(0, EscReason)
 		} else {
 			if diagnose && f.Sym != nil {
 				base.WarnfAt(f.Pos, "leaking param: %v", name())
 			}
-			esc.AddHeap(0)
+			esc.AddHeap(0, EscReason)
 		}
 
 		return esc.Encode()

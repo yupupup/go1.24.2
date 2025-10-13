@@ -115,7 +115,8 @@ func (l *location) asHole() hole {
 }
 
 // leak records that parameter l leaks to sink.
-func (l *location) leakTo(sink *location, derefs int) {
+//l-->sink(root)
+func (l *location) leakTo(sink *location, derefs int, whyesc ESCAPE_TYPE) {
 	// If sink is a result parameter that doesn't escape (#44614)
 	// and we can fit return bits into the escape analysis tag,
 	// then record as a result leak.
@@ -123,17 +124,17 @@ func (l *location) leakTo(sink *location, derefs int) {
 		ri := sink.resultIndex - 1
 		if ri < numEscResults {
 			// Leak to result parameter.
-			l.paramEsc.AddResult(ri, derefs)
+			l.paramEsc.AddResult(ri, derefs, whyesc)
 			return
 		}
 	}
 
 	// Otherwise, record as heap leak.
-	l.paramEsc.AddHeap(derefs)
+	l.paramEsc.AddHeap(derefs, whyesc)
 }
 
 // leakTo records that parameter l leaks to sink.
-func (b *batch) leakTo(l, sink *location, derefs int) {
+func (b *batch) leakTo(l, sink *location, derefs int, whyesc ESCAPE_TYPE) {
 	if (logopt.Enabled() || base.Flag.LowerM >= 2) && !l.hasAttr(attrEscapes) {
 		if base.Flag.LowerM >= 2 {
 			fmt.Printf("%s: parameter %v leaks to %s with derefs=%d:\n", base.FmtPos(l.n.Pos()), l.n, b.explainLoc(sink), derefs)
@@ -152,13 +153,13 @@ func (b *batch) leakTo(l, sink *location, derefs int) {
 	if !sink.hasAttr(attrEscapes) && sink.isName(ir.PPARAMOUT) && sink.curfn == l.curfn {
 		if ri := sink.resultIndex - 1; ri < numEscResults {
 			// Leak to result parameter.
-			l.paramEsc.AddResult(ri, derefs)
+			l.paramEsc.AddResult(ri, derefs, whyesc)
 			return
 		}
 	}
 
 	// Otherwise, record as heap leak.
-	l.paramEsc.AddHeap(derefs)
+	l.paramEsc.AddHeap(derefs, whyesc)
 }
 
 func (l *location) isName(c ir.Class) bool {
@@ -177,6 +178,7 @@ type hole struct {
 	// the expression, independent of whether the address will actually
 	// be stored into a variable.
 	addrtaken bool
+	escWhy string//实参形参传递逃逸原因
 }
 
 type note struct {
