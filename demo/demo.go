@@ -1,6 +1,6 @@
 package demo
 
-//var sink interface{}
+var sink interface{}
 
 var p1 *int
 var p2 **int
@@ -44,7 +44,7 @@ func referencedByGlobal() {
 	p := &i
 	sink, p2 = p, &p
 }
-*/
+
 func returnAddress() **int {
 	i := 10
 	p1 := &i
@@ -61,14 +61,179 @@ func variableSize() {
 /*
 var sink interface{}
 
-func callee(p *int) {
-	sink = p
+
+// E_LAREG: 大对象逃逸（通过参数传递大切片指针）
+func callee4(p *[]int) {
+	_ = (*p)[0] // 仅访问，不修改
+}
+
+func caller4() {
+	// 分配一个超大切片（1<<20 = 1048576 个元素 ≈ 8MB）
+	large := make([]int, 1<<20) // ERROR "moved to heap: large"
+	callee4(&large)
+}
+
+
+// E_DYNAMIC: 变长对象逃逸（通过参数传递切片并扩容）
+func callee5(p *[]int) {
+	*p = append(*p, 42) // append 可能导致扩容
+}
+
+func caller5() {
+	s := make([]int, 2) // 初始容量较小
+	callee5(&s)         // ERROR "moved to heap: s"
+}
+*/
+//******************************以下是caller-callee逃逸案例
+func callee(p *int) **int {//Rtn
+	return &p
 }
 
 func caller() {
 	i := 0 // ERROR "moved to heap: i$"
-	callee(&i)
+	_ = callee(&i)
 }
+
+var g *int
+func callee3(p *int) {//Glb
+	g = p
+}
+
+func caller3() {
+	i := 0 // ERROR "moved to heap: i"
+	callee3(&i)
+}
+
+// E_COROUTINE: 参数传入协程闭包
+func callee6(p *int) {
+	go func() {
+		_ = *p
+	}()
+}
+func caller6() {
+	x := 0 // ERROR "moved to heap: x"
+	callee6(&x)
+}
+
+
+
+
+
+/*
+
+// E_LAREG: 大对象逃逸（通过参数传入大切片指针）
+func callee1(p *[]int) {
+	_ = *p
+}
+	
+func caller1() {
+	// 超大切片
+	large := make([]int, 1<<20) // ERROR "moved to heap: large"
+	callee1(&large)
+}
+*/
+
+/*
+func calleeVar(s *[]int) *[]int {
+	*s = append(*s, 42) // append 可能触发扩容
+	return s
+}
+
+func callerVar() {
+	s := make([]int, 2) // 初始容量较小
+	_ = calleeVar(&s)   // ERROR "moved to heap: s$"
+}
+
+/*
+func calleeDynamic(s []int) {
+	// 被调函数内部 append 导致可能扩容
+	s = append(s, 1<<20)
+	_ = s
+}
+
+func callerDynamic() {
+	// 初始切片较小
+	small := make([]int, 2)
+	calleeDynamic(small) // ERROR "moved to heap: small"
+}
+
+/*
+func callee1(p *[]int) {
+	_ = *p
+}
+	
+func caller1() {
+	// 超大切片
+	large := make([]int, 1<<20) // ERROR "moved to heap: large"
+	callee1(&large)
+}
+
+/*
+// E_DYNAMIC: 动态大小逃逸（参数决定 make 的大小）
+func callee2(n int) *[]int {
+	s := make([]int, n)
+	return &s
+}
+func caller2() {
+	x := 10
+	_ = callee2(x) // ERROR "moved to heap: x"
+}
+
+// E_GLOBAL: 参数赋值给全局变量
+var g *int
+func callee3(p *int) {
+	g = p
+}
+func caller3() {
+	i := 0 // ERROR "moved to heap: i"
+	callee3(&i)
+}
+
+// E_INDIRECT: 参数通过间接赋值导致逃逸
+func callee4(p **int) {
+	j := 1
+	*p = &j
+}
+func caller4() {
+	var q *int
+	callee4(&q) // ERROR "moved to heap: q"
+}
+
+// E_OUTERLOOP: 循环变量通过参数传递到闭包
+func callee5(p *int) func() int {
+	return func() int { return *p }
+}
+func caller5() {
+	for i := 0; i < 3; i++ {
+		_ = callee5(&i) // ERROR "moved to heap: i"
+	}
+}
+*/
+
+/*
+// too_large：分配的局部数组太大，栈放不下 -> 逃逸
+func callee_too_large(p *[1 << 20]int) []int {
+	return *p
+}
+
+func caller_too_large() {
+	var big [1 << 20]int // ERROR "moved to heap: big"
+	callee_too_large(&big)
+}
+
+/*
+func callee6(p int[]) {
+	p = [1000000]int{}
+	_ = p
+}
+
+func caller6() {
+	var x int[]// ERROR "moved to heap: x"
+	callee6(x)
+}
+
+*/
+
 
 /*
 func outerLoopReference() {
