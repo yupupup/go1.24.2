@@ -137,7 +137,7 @@ func output_one_package_countAll() {
 	defer file.Close()
 
 	file_order := "\033[32mreturn too_large dynamic_alloc global outerloop indirect coroutine callparam mapindex unknown\033[0m"
-	file_num := fmt.Sprintf("\033[32m*****#10# %d %d %d %d %d %d %d %d %d %d #\033[0m",
+	file_num := fmt.Sprintf("*****#10# %d %d %d %d %d %d %d %d %d %d #",
 		ac.c_retrun, ac.c_too_large, ac.c_dynamic_alloc, ac.c_global_ref,
 		ac.c_outerloop_ref, ac.c_indirect_ref, ac.c_coroutine, ac.c_callparam,
 		ac.c_mapindex, ac.c_unknown)

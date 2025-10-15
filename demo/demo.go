@@ -1,5 +1,8 @@
 package demo
 
+import "fmt"
+
+
 var sink interface{}
 
 var p1 *int
@@ -85,6 +88,11 @@ func caller5() {
 }
 */
 //******************************以下是caller-callee逃逸案例
+func print(){
+	fmt.Print("bug")
+	fmt.Printf("bug,%s","test")
+}
+/*
 func callee(p *int) **int {//Rtn
 	return &p
 }
@@ -93,7 +101,7 @@ func caller() {
 	i := 0 // ERROR "moved to heap: i$"
 	_ = callee(&i)
 }
-
+/*
 var g *int
 func callee3(p *int) {//Glb
 	g = p
@@ -113,9 +121,24 @@ func callee6(p *int) {
 func caller6() {
 	x := 0 // ERROR "moved to heap: x"
 	callee6(&x)
+
+	panic("arena double free")
 }
+*/
 
-
+// func callee6(stackBuf []uintptr) {
+// 	//panic("arena double free")
+// 	_ = stackBuf
+// 	//stackBuf := make([]uintptr, traceStackSize)
+// 	//_ = stackBuf
+// }
+// const traceStackSize = 128
+// func caller6() {
+// 	//panic("arena double free")
+	
+// 	stackBuf := make([]uintptr, traceStackSize)
+// 	callee6(stackBuf)         // ERROR "moved to heap: stackBuf"
+// }
 
 
 
@@ -495,3 +518,5 @@ Referenced by global variable
 Referenced by multi-threads
 记录最大的原因
 */
+
+

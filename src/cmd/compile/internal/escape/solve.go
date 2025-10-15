@@ -385,7 +385,7 @@ func (b *batch) recordEscapeInfo(srcLoc, dstLoc *location, whyx ESCAPE_TYPE, byt
 		ac.c_unknown++
 		fmt.Printf("\033[32mmy unKnown escape count %d , escape size: %d , escape type: %s\033[0m\n", ac.c_unknown, bytesize, escapetype)
 	default:
-		fmt.Printf("\033[32mswitch defalut\033[0m\n")
+		fmt.Printf("\033[32mswitch defalut:%d\033[0m\n",whyx)
 	}
 
 	clonedSrcName := b.explainLoc(srcLoc)
@@ -577,6 +577,9 @@ var strToEscType = map[string]ESCAPE_TYPE{
 	"E_OUTERLOOP": E_OUTERLOOP,
 	"E_COROUTINE": E_COROUTINE,
 	"E_MAPINDEX":  E_MAPINDEX,
+	"E_CLOSURE":   E_CLOSURE,
+	"E_CO_CLOSURE": E_CO_CLOSURE,
+	"E_UNKNOWN":   E_UNKNOWN,
 }
 
 // 遍历whys，计算一个变量逃逸的情况
@@ -659,6 +662,12 @@ func (b *batch) countAll() {
 			haven_heap_escape = true
 		}
 
+		//panic导致全局
+		// if !haven_find_escape && whys[whys_len].why == "E_GLOBAL" {
+		// 	escape_reason = E_GLOBAL
+		// 	haven_find_escape = true
+		// }
+
 		// 堆逃逸的情形分为全局引用和间接引用两种，合在一起判断，均为赋值语句。
 		// 赋值目前可能存在2种，一种是AssignStmt，一种是assignListStmt
 		if !haven_find_escape && haven_heap_escape {
@@ -727,6 +736,10 @@ func (b *batch) countAll() {
 			var arvalues []ir.Node
 			if ok1 {
 				arvalues = ass.Results
+				if whys[whys_len].why == "return" {
+					escape_reason = E_RETURN
+					haven_find_escape = true
+				}
 				// for _, arvalue := range ass.Results{
 				// 	//arvalues[i].n = arvalue
 				// 	arvalues = append(arvalues, &location{n: arvalue})
@@ -749,21 +762,23 @@ func (b *batch) countAll() {
 					//loc.n = ar3.Y
 					arvalues = append(arvalues, ar3.Y)
 				}
+
+				// 找右值是不是取地址的
+				for _, arvalue := range arvalues {
+					if b.storesAddress(&arvalue) {
+						escape_reason = E_RETURN
+						haven_find_escape = true
+						break
+					}
+			}
 			}
 
-			// 找右值是不是取地址的
-			for _, arvalue := range arvalues {
-				if b.storesAddress(&arvalue) {
-					escape_reason = E_RETURN
-					haven_find_escape = true
-					break
-				}
-			}
+			
 		}
 
 		if !haven_find_escape && whys_len >= 1 && whys[whys_len].why == "reference" {
 			if whys[whys_len-1].why == "captured by a closure" {
-				escape_reason = E_CALLPARAM
+				escape_reason = E_CLOSURE
 				haven_find_escape = true
 			}
 		}

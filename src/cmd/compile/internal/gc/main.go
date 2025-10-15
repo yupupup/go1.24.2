@@ -46,12 +46,12 @@ import (
 // hcrash(), in which case, we pass the panic on through.
 func handlePanic() {
 	if err := recover(); err != nil {
-		if err == "-h" {
+	//	if err == "-h" {
 			// Force real panic now with -h option (hcrash) - the error
 			// information will have already been printed.
 			panic(err)
-		}
-		base.Fatalf("panic: %v", err)
+	//	}
+	//	base.Fatalf("panic: %v", err)
 	}
 }
 

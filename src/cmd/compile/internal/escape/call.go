@@ -71,7 +71,7 @@ func (e *escape) call(ks []hole, call ir.Node) {
 					}
 				}
 			}
-			e.expr(calleeK, call.Fun)
+			e.expr(calleeK.note(call,"E_RETURN"), call.Fun)
 		} else {
 			recvArg = call.Fun.(*ir.SelectorExpr).X
 		}
@@ -80,7 +80,7 @@ func (e *escape) call(ks []hole, call ir.Node) {
 		// argument to its corresponding parameter.
 		argumentParam := func(param *types.Field, arg ir.Node) {
 			e.rewriteArgument(arg, call, fn)
-			argument(e.tagHole(ks, fn, param), arg)
+			argument(e.tagHole(ks, fn, param).note(call,"E_RETURN"), arg)
 		}
 
 		// hash/maphash.escapeForHash forces its argument to be on
@@ -100,7 +100,7 @@ func (e *escape) call(ks []hole, call ir.Node) {
 					}
 				} else {
 					argumentParam = func(param *types.Field, arg ir.Node) {
-						argument(e.heapHole(), arg)
+						argument(e.heapHole().note(call,"E_RETURN"), arg)
 					}
 				}
 			}
@@ -129,7 +129,7 @@ func (e *escape) call(ks []hole, call ir.Node) {
 			if ks != nil {
 				k = ks[i]
 			}
-			e.expr(k, result)
+			e.expr(k.note(call,"E_RETURN"), result)
 		}
 
 	case ir.OAPPEND:
@@ -140,18 +140,19 @@ func (e *escape) call(ks []hole, call ir.Node) {
 		// it has enough capacity. Alternatively, a new heap
 		// slice might be allocated, and all slice elements
 		// might flow to heap.
+		//append(appendee []T, appended ...T) []T
 		appendeeK := e.teeHole(ks[0], e.mutatorHole())
 		if args[0].Type().Elem().HasPointers() {
 			appendeeK = e.teeHole(appendeeK, e.heapHole().deref(call, "appendee slice"))
 		}
-		argument(appendeeK, args[0])
+		argument(appendeeK.note(call, "E_DYNAMIC"), args[0])
 
 		if call.IsDDD {
 			appendedK := e.discardHole()
 			if args[1].Type().IsSlice() && args[1].Type().Elem().HasPointers() {
 				appendedK = e.heapHole().deref(call, "appended slice...")
 			}
-			argument(appendedK, args[1])
+			argument(appendedK.note(call, "E_DYNAMIC"), args[1])
 		} else {
 			for i := 1; i < len(args); i++ {
 				argument(e.heapHole(), args[i])
@@ -161,18 +162,18 @@ func (e *escape) call(ks []hole, call ir.Node) {
 
 	case ir.OCOPY:
 		call := call.(*ir.BinaryExpr)
-		argument(e.mutatorHole(), call.X)
+		argument(e.mutatorHole().note(call, "E_DYNAMIC"), call.X)
 
 		copiedK := e.discardHole()
 		if call.Y.Type().IsSlice() && call.Y.Type().Elem().HasPointers() {
 			copiedK = e.heapHole().deref(call, "copied slice")
 		}
-		argument(copiedK, call.Y)
+		argument(copiedK.note(call, "E_DYNAMIC"), call.Y)
 		e.discard(call.RType)
 
 	case ir.OPANIC:
 		call := call.(*ir.UnaryExpr)
-		argument(e.heapHole(), call.X)
+		argument(e.heapHole().note(call, "E_GLOBAL"), call.X)
 
 	case ir.OCOMPLEX:
 		call := call.(*ir.BinaryExpr)
@@ -350,6 +351,10 @@ var escTypeToStr = map[ESCAPE_TYPE]string{
 	E_OUTERLOOP: "E_OUTERLOOP",
 	E_COROUTINE: "E_COROUTINE",
 	E_MAPINDEX:  "E_MAPINDEX",
+
+	E_CLOSURE:   "E_CLOSURE",
+	E_UNKNOWN:   "E_UNKNOWN",
+	E_CO_CLOSURE: "E_CO_CLOSURE",
 }
 
 
