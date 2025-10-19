@@ -89,19 +89,19 @@ func caller5() {
 */
 //******************************以下是caller-callee逃逸案例
 func print(){
-	fmt.Print("bug")
+	//fmt.Print("bug")
 	fmt.Printf("bug,%s","test")
 }
-/*
-func callee(p *int) **int {//Rtn
-	return &p
-}
 
-func caller() {
-	i := 0 // ERROR "moved to heap: i$"
-	_ = callee(&i)
-}
-/*
+// func callee(p *int) **int {//Rtn
+// 	return &p
+// }
+
+// func caller() {
+// 	i := 0 // ERROR "moved to heap: i$"
+// 	_ = callee(&i)
+// }
+ /*
 var g *int
 func callee3(p *int) {//Glb
 	g = p
@@ -124,7 +124,7 @@ func caller6() {
 
 	panic("arena double free")
 }
-*/
+
 
 // func callee6(stackBuf []uintptr) {
 // 	//panic("arena double free")
