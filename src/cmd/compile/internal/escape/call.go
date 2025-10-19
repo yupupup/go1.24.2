@@ -10,6 +10,7 @@ import (
 	"cmd/compile/internal/typecheck"
 	"cmd/compile/internal/types"
 	"cmd/internal/src"
+	"fmt"
 	"strings"
 )
 
@@ -71,7 +72,7 @@ func (e *escape) call(ks []hole, call ir.Node) {
 					}
 				}
 			}
-			e.expr(calleeK.note(call,"E_RETURN"), call.Fun)
+			e.expr(calleeK, call.Fun)
 		} else {
 			recvArg = call.Fun.(*ir.SelectorExpr).X
 		}
@@ -80,7 +81,7 @@ func (e *escape) call(ks []hole, call ir.Node) {
 		// argument to its corresponding parameter.
 		argumentParam := func(param *types.Field, arg ir.Node) {
 			e.rewriteArgument(arg, call, fn)
-			argument(e.tagHole(ks, fn, param).note(call,"E_RETURN"), arg)
+			argument(e.tagHole(ks, fn, param), arg)
 		}
 
 		// hash/maphash.escapeForHash forces its argument to be on
@@ -100,7 +101,7 @@ func (e *escape) call(ks []hole, call ir.Node) {
 					}
 				} else {
 					argumentParam = func(param *types.Field, arg ir.Node) {
-						argument(e.heapHole().note(call,"E_RETURN"), arg)
+						argument(e.heapHole(), arg)
 					}
 				}
 			}
@@ -129,7 +130,7 @@ func (e *escape) call(ks []hole, call ir.Node) {
 			if ks != nil {
 				k = ks[i]
 			}
-			e.expr(k.note(call,"E_RETURN"), result)
+			e.expr(k, result)
 		}
 
 	case ir.OAPPEND:
@@ -355,6 +356,7 @@ var escTypeToStr = map[ESCAPE_TYPE]string{
 	E_CLOSURE:   "E_CLOSURE",
 	E_UNKNOWN:   "E_UNKNOWN",
 	E_CO_CLOSURE: "E_CO_CLOSURE",
+	E_NOT:       "E_NOT",
 }
 
 
@@ -388,14 +390,19 @@ func (e *escape) tagHole(ks []hole, fn *ir.Name, param *types.Field) hole {
 	if x := esc.Heap(); x >= 0 {
 		tagKs = append(tagKs, e.heapHole().shift(x))
 		escRsn = esc.getReason(leakHeap)
+		if param.Nname != nil {
+		fmt.Printf("leakHeap: param %s,object %s, escapes because: %s\n", param.Nname.Sym().Linkname,param.Nname.Sym().Name, escTypeToStr[escRsn])
+		}
 	}
 	if x := esc.Mutator(); x >= 0 {
 		tagKs = append(tagKs, e.mutatorHole().shift(x))
 		escRsn = esc.getReason(leakMutator)
+		//fmt.Printf("leakMutator: param %v escapes because: %s\n", param, escTypeToStr[escRsn])
 	}
 	if x := esc.Callee(); x >= 0 {
 		tagKs = append(tagKs, e.calleeHole().shift(x))
 		escRsn = esc.getReason(leakCallee)
+		//fmt.Printf("leakCallee: param %v escapes because: %s\n", param, escTypeToStr[escRsn])
 	}
 
 	if ks != nil {
@@ -403,6 +410,7 @@ func (e *escape) tagHole(ks []hole, fn *ir.Name, param *types.Field) hole {
 			if x := esc.Result(i); x >= 0 {
 				tagKs = append(tagKs, ks[i].shift(x))
 				escRsn = esc.getReason(leakResult0 + i)
+				//fmt.Printf("leakResult + %d: param %v escapes because: %s\n", i, param, escTypeToStr[escRsn])
 			}
 		}
 	}

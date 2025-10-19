@@ -251,7 +251,8 @@ type one_escape struct {
 type ESCAPE_TYPE int
 
 const (
-	E_RETURN     ESCAPE_TYPE = iota // 返回值指针
+	E_NOT 		ESCAPE_TYPE = iota	// 没找到逃逸
+	E_RETURN      					// 返回值指针
 	E_LAREG                         // 过大的make
 	E_DYNAMIC                       // make动态赋值
 	E_GLOBAL                        // 全局变量引用
@@ -265,7 +266,7 @@ const (
 	E_CLOSURE                       // 闭包
 	E_CO_CLOSURE                    // 协程调用所需要的闭包
 	E_UNKNOWN
-	E_NOT // 没找到逃逸
+	
 )
 
 // 定义的所有种类的个数
@@ -504,6 +505,7 @@ func (b *batch) storesAddress(v *ir.Node) bool {
 	case types.TPTR,types.TUNSAFEPTR,
 	types.TUINTPTR,types.TMAP,
 	types.TCHAN,types.TSLICE,
+	types.TSTRING,
 	types.TINTER,types.TFUNC:
 		return true
 	// case reflect.Ptr, reflect.UnsafePointer,
@@ -580,6 +582,7 @@ var strToEscType = map[string]ESCAPE_TYPE{
 	"E_CLOSURE":   E_CLOSURE,
 	"E_CO_CLOSURE": E_CO_CLOSURE,
 	"E_UNKNOWN":   E_UNKNOWN,
+	"E_NOT":      E_NOT,
 }
 
 // 遍历whys，计算一个变量逃逸的情况
@@ -606,6 +609,7 @@ func (b *batch) countAll() {
 	if is_parameter_leaks {
 		// 如果这个是还是函数参数的，直接不管
 		is_not_1_edge = false
+
 		//return
 	}
 
@@ -775,6 +779,14 @@ func (b *batch) countAll() {
 
 			
 		}
+
+
+		// 其他RETURN类型的，这里是call param的
+        if whys[whys_len].why == "call parameter" &&
+            ((whys[0].srcLoc.n != nil && b.storesAddress(&(whys[0].srcLoc.n))) || whys[0].why == "address-of") { // 2种取地址的操作
+            escape_reason = E_RETURN
+            haven_find_escape = true
+        }
 
 		if !haven_find_escape && whys_len >= 1 && whys[whys_len].why == "reference" {
 			if whys[whys_len-1].why == "captured by a closure" {
