@@ -10,6 +10,7 @@ import (
 	"cmd/compile/internal/typecheck"
 	"cmd/compile/internal/types"
 	"cmd/internal/src"
+	"fmt"
 	"strings"
 )
 
@@ -343,6 +344,7 @@ func (e *escape) copyExpr(pos src.XPos, expr ir.Node, init *ir.Nodes) *ir.Name {
 }
 
 var escTypeToStr = map[ESCAPE_TYPE]string{
+	E_NOT:       "E_NOT",
 	E_RETURN:    "E_RETURN",
 	E_LAREG:     "E_LAREG",
 	E_DYNAMIC:   "E_DYNAMIC",
@@ -362,6 +364,7 @@ var escTypeToStr = map[ESCAPE_TYPE]string{
 // callee's results flows. fn is the statically-known callee function,
 // if any.
 func (e *escape) tagHole(ks []hole, fn *ir.Name, param *types.Field) hole {
+	fmt.Print("Getin TagHole\n")
 	// If this is a dynamic call, we can't rely on param.Note.
 	if fn == nil {
 		return e.heapHole()
@@ -405,6 +408,12 @@ func (e *escape) tagHole(ks []hole, fn *ir.Name, param *types.Field) hole {
 		}
 	}
 
+	if param.Nname != nil {
+		fmt.Printf("the object %s escRsn: %s\n", param.Nname.Sym().Name, escTypeToStr[escRsn])
+	} else {
+		fmt.Printf("the object nil escRsn: %s\n", escTypeToStr[escRsn])
+	}
+
 	// var escStr string
 
 	// switch escRsn {
@@ -432,10 +441,14 @@ func (e *escape) tagHole(ks []hole, fn *ir.Name, param *types.Field) hole {
 	//fmt.Printf("param %v escapes because: %s\n", param, escTypeToStr[escRsn])
 
 	//return e.teeHole(tagKs...).note(param.Nname.(*ir.Name), escStr)
-	if param.Nname != nil && escRsn != E_UNKNOWN {
+	if param.Nname != nil {
 		return e.teeHole(tagKs...).note(param.Nname.(*ir.Name), escTypeToStr[escRsn])
+	} else {
+		mynil := ir.Name{}
+		var mynode ir.Node = &mynil
+		return e.teeHole(tagKs...).note(mynode, escTypeToStr[escRsn])
 	}
-	return e.teeHole(tagKs...) // 没有名字就不加注解
+	// return e.teeHole(tagKs...) // 没有名字就不加注解
 
 }
 

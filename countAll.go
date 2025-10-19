@@ -23,8 +23,8 @@ const (
 	//logFile = "/home/rennny/dev/go/dataset/gogs/gogs.log" // 日志文件路径
 	//logFile = "/home/rennny/dev/go/dataset/v2ray-core/v2ray.log" // 日志文件路径
 	//logFile = "/home/rennny/dev/go/dataset/etcd/etcd.log" // 日志文件路径
-	logFile = "/home/rennny/dev/go/dataset/rclone/rclone.log" // 日志文件路径
-	count   = 10                              // 每组数据的整数个数
+	logFile = "/home/luo/go/rclone/rclone.log" // 日志文件路径
+	count   = 10                               // 每组数据的整数个数
 )
 
 // ===================================
@@ -99,11 +99,11 @@ func main() {
 	// 输出累加结果
 	var sum int64 = 0
 	fmt.Println("统计结果：")
-	for i := 0; i< len(sums) - 1; i++ {
+	for i := 0; i < len(sums)-1; i++ {
 		sum += sums[i]
 	}
 
-	for i := 0; i< len(sums) - 1; i++ {
+	for i := 0; i < len(sums)-1; i++ {
 		s := sums[i]
 		ratio := float64(s) / float64(sum) * 100
 		fmt.Printf("  %s:  \t %d \t %.2f%%\n", labels[i], s, ratio)
@@ -111,7 +111,7 @@ func main() {
 
 	fmt.Printf("  总计: %d\n", sum)
 
-		// 创建一个新的 Excel 文件
+	// 创建一个新的 Excel 文件
 	fx := excelize.NewFile()
 	// 获取默认工作表
 	sheetName := fx.GetSheetName(fx.GetActiveSheetIndex())

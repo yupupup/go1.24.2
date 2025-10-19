@@ -1,5 +1,7 @@
 package demo
 
+import "fmt"
+
 var sink interface{}
 
 var p1 *int
@@ -85,12 +87,60 @@ func caller5() {
 }
 */
 //******************************以下是caller-callee逃逸案例
-/*
-func print(){
+
+func print() {
 	fmt.Print("bug")
-	fmt.Printf("bug,%s","test")
+	fmt.Printf("bug,%s", "test")
 }
-*/
+
+/*
+type buffer []byte
+
+type kkk struct {
+	buf *buffer
+
+	wid  int // width
+	prec int // precision
+
+	// intbuf is large enough to store %b of an int64 with a sign and
+	// avoids padding at the end of the struct on 32 bit architectures.
+	intbuf [68]byte
+}
+
+// writePadding generates n bytes of padding.
+func (f *kkk) writePadding(n int) {
+	if n <= 0 { // No padding bytes needed.
+		return
+	}
+	buf := *f.buf
+	oldLen := len(buf)
+	newLen := oldLen + n
+	// Make enough room for padding.
+	if newLen > cap(buf) {
+		buf = make(buffer, cap(buf)*2+n)
+		copy(buf, *f.buf)
+	}
+	// Decide which byte the padding should be filled with.
+	padByte := byte(' ')
+	// Zero padding is allowed only to the left.
+	padByte = byte('0')
+	// Fill padding with padByte.
+	padding := buf[oldLen:newLen]
+	for i := range padding {
+		padding[i] = padByte
+	}
+	*f.buf = buf[:newLen]
+}
+
+func (f *kkk) pad(b []byte) {
+
+	width := 10
+
+	f.writePadding(width)
+
+}
+
+/*
 func callee(p *int) **int { //Rtn
 	return &p
 }
@@ -99,7 +149,26 @@ func caller() {
 	i := 0 // ERROR "moved to heap: i$"
 	_ = callee(&i)
 }
+*/
+/*
+type Person struct {
+	Name string  // 姓名
+	Age  int     // 年龄
+	Tall float64 // 身高
+}
 
+func main() {
+
+	var p Person
+	more := make([]Person, 0, 20)
+	more = append(more, Person{
+		Name: "Alice" + p.Name + "sdfgdsfgds",
+		Age:  25,
+		Tall: 1.68,
+	})
+
+}
+*/
 /*
 var g *int
 func callee3(p *int) {//Glb
