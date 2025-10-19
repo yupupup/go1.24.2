@@ -1,8 +1,5 @@
 package demo
 
-import "fmt"
-
-
 var sink interface{}
 
 var p1 *int
@@ -27,7 +24,7 @@ func mapIndex() {
 	x = x + "test"
 	map_test[x] = 19
 }
-	
+
 /*
 var sink *int
 
@@ -88,12 +85,13 @@ func caller5() {
 }
 */
 //******************************以下是caller-callee逃逸案例
+/*
 func print(){
 	fmt.Print("bug")
 	fmt.Printf("bug,%s","test")
 }
-/*
-func callee(p *int) **int {//Rtn
+*/
+func callee(p *int) **int { //Rtn
 	return &p
 }
 
@@ -101,6 +99,7 @@ func caller() {
 	i := 0 // ERROR "moved to heap: i$"
 	_ = callee(&i)
 }
+
 /*
 var g *int
 func callee3(p *int) {//Glb
@@ -135,12 +134,10 @@ func caller6() {
 // const traceStackSize = 128
 // func caller6() {
 // 	//panic("arena double free")
-	
+
 // 	stackBuf := make([]uintptr, traceStackSize)
 // 	callee6(stackBuf)         // ERROR "moved to heap: stackBuf"
 // }
-
-
 
 /*
 
@@ -148,7 +145,7 @@ func caller6() {
 func callee1(p *[]int) {
 	_ = *p
 }
-	
+
 func caller1() {
 	// 超大切片
 	large := make([]int, 1<<20) // ERROR "moved to heap: large"
@@ -184,7 +181,7 @@ func callerDynamic() {
 func callee1(p *[]int) {
 	_ = *p
 }
-	
+
 func caller1() {
 	// 超大切片
 	large := make([]int, 1<<20) // ERROR "moved to heap: large"
@@ -256,7 +253,6 @@ func caller6() {
 }
 
 */
-
 
 /*
 func outerLoopReference() {
@@ -518,5 +514,3 @@ Referenced by global variable
 Referenced by multi-threads
 记录最大的原因
 */
-
-

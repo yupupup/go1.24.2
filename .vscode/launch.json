@@ -1,28 +1,28 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-      
-      {
-        "name": "Debug Go Compiler (cmd/compile)",
-        "type": "go",
-        "request": "launch",
-        "mode": "exec",                                              // 直接执行已有二进制，不重新编译 :contentReference[oaicite:2]{index=2}
-        "program": "/home/rmy/dev/go/pkg/tool/linux_amd64/compile",    // 指向重建后的 compile 工具 :contentReference[oaicite:3]{index=3}
-        "args": [
-          "-m=2","-l",
-          "-o", "${workspaceFolder}/demo/demo.o",                    // 输出文件
-          "${workspaceFolder}/demo/demo.go"                          // 要编译的 main 源文件
-        ],
-        "cwd": "${workspaceFolder}/demo",                            // 工作目录可设为 main 包所在处 :contentReference[oaicite:4]{index=4}
-        "env": {
-          "GOROOT": "/home/rmy/dev/go"                                 // 确保标准库路径正确 :contentReference[oaicite:5]{index=5}
-        },
-       // "dlvToolPath": "/home/rennny/go/bin/dlv",                         // 如需指定特定 delve 可执行文件 :contentReference[oaicite:6]{index=6}
-        "showLog": true,                                              // 在 “Go Debug” 通道输出日志
-        "trace": "verbose"                                           // 开启 DAP 通道调试日志
-      }
-      
-      /*
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Go Compiler (cmd/compile)",
+      "type": "go",
+      "request": "launch",
+      "mode": "exec", // 直接执行已有二进制，不重新编译 :contentReference[oaicite:2]{index=2}
+      "program": "/home/luo/go/go1.24.2/pkg/tool/linux_amd64/compile", // 指向重建后的 compile 工具 :contentReference[oaicite:3]{index=3}
+      "args": [
+        "-m=2",
+        "-l",
+        "-o",
+        "${workspaceFolder}/demo/demo.o", // 输出文件
+        "${workspaceFolder}/demo/demo.go" // 要编译的 main 源文件
+      ],
+      "cwd": "${workspaceFolder}/demo", // 工作目录可设为 main 包所在处 :contentReference[oaicite:4]{index=4}
+      "env": {
+        "GOROOT": "/home/luo/go/go1.24.2" // 确保标准库路径正确 :contentReference[oaicite:5]{index=5}
+      },
+      // "dlvToolPath": "/home/rennny/go/bin/dlv",                         // 如需指定特定 delve 可执行文件 :contentReference[oaicite:6]{index=6}
+      "showLog": true, // 在 “Go Debug” 通道输出日志
+      "trace": "verbose" // 开启 DAP 通道调试日志
+    }
+    /*
       {
         // dlv exec ../../bin/go build . # under main dir
         "name": "Debug main package",       // 调试配置的名称，这里为 "Debug main package"
@@ -45,6 +45,5 @@
         //"console": "integratedTerminal"      // 在集成终端中显示调试输出
     }
         */
-    
-    ]
-  }
+  ]
+}

@@ -71,7 +71,7 @@ func (e *escape) call(ks []hole, call ir.Node) {
 					}
 				}
 			}
-			e.expr(calleeK.note(call,"E_RETURN"), call.Fun)
+			e.expr(calleeK, call.Fun)
 		} else {
 			recvArg = call.Fun.(*ir.SelectorExpr).X
 		}
@@ -80,7 +80,7 @@ func (e *escape) call(ks []hole, call ir.Node) {
 		// argument to its corresponding parameter.
 		argumentParam := func(param *types.Field, arg ir.Node) {
 			e.rewriteArgument(arg, call, fn)
-			argument(e.tagHole(ks, fn, param).note(call,"E_RETURN"), arg)
+			argument(e.tagHole(ks, fn, param), arg)
 		}
 
 		// hash/maphash.escapeForHash forces its argument to be on
@@ -100,7 +100,7 @@ func (e *escape) call(ks []hole, call ir.Node) {
 					}
 				} else {
 					argumentParam = func(param *types.Field, arg ir.Node) {
-						argument(e.heapHole().note(call,"E_RETURN"), arg)
+						argument(e.heapHole().note(call, "E_RETURN"), arg)
 					}
 				}
 			}
@@ -129,7 +129,7 @@ func (e *escape) call(ks []hole, call ir.Node) {
 			if ks != nil {
 				k = ks[i]
 			}
-			e.expr(k.note(call,"E_RETURN"), result)
+			e.expr(k.note(call, "E_RETURN"), result)
 		}
 
 	case ir.OAPPEND:
@@ -352,12 +352,10 @@ var escTypeToStr = map[ESCAPE_TYPE]string{
 	E_COROUTINE: "E_COROUTINE",
 	E_MAPINDEX:  "E_MAPINDEX",
 
-	E_CLOSURE:   "E_CLOSURE",
-	E_UNKNOWN:   "E_UNKNOWN",
+	E_CLOSURE:    "E_CLOSURE",
+	E_UNKNOWN:    "E_UNKNOWN",
 	E_CO_CLOSURE: "E_CO_CLOSURE",
 }
-
-
 
 // tagHole returns a hole for evaluating an argument passed to param.
 // ks should contain the holes representing where the function
@@ -407,7 +405,6 @@ func (e *escape) tagHole(ks []hole, fn *ir.Name, param *types.Field) hole {
 		}
 	}
 
-
 	// var escStr string
 
 	// switch escRsn {
@@ -432,14 +429,12 @@ func (e *escape) tagHole(ks []hole, fn *ir.Name, param *types.Field) hole {
 	// 	escStr = "E_UNKNOWN"
 	// }
 
-
-
 	//fmt.Printf("param %v escapes because: %s\n", param, escTypeToStr[escRsn])
 
 	//return e.teeHole(tagKs...).note(param.Nname.(*ir.Name), escStr)
 	if param.Nname != nil && escRsn != E_UNKNOWN {
-    return e.teeHole(tagKs...).note(param.Nname.(*ir.Name), escTypeToStr[escRsn])
-}
+		return e.teeHole(tagKs...).note(param.Nname.(*ir.Name), escTypeToStr[escRsn])
+	}
 	return e.teeHole(tagKs...) // 没有名字就不加注解
 
 }
