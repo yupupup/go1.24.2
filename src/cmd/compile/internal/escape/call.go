@@ -101,7 +101,7 @@ func (e *escape) call(ks []hole, call ir.Node) {
 					}
 				} else {
 					argumentParam = func(param *types.Field, arg ir.Node) {
-						argument(e.heapHole(), arg)
+						argument(e.heapHole().note(call, "E_RETURN"), arg)
 					}
 				}
 			}
@@ -130,7 +130,7 @@ func (e *escape) call(ks []hole, call ir.Node) {
 			if ks != nil {
 				k = ks[i]
 			}
-			e.expr(k, result)
+			e.expr(k.note(call, "E_RETURN"), result)
 		}
 
 	case ir.OAPPEND:
@@ -344,6 +344,7 @@ func (e *escape) copyExpr(pos src.XPos, expr ir.Node, init *ir.Nodes) *ir.Name {
 }
 
 var escTypeToStr = map[ESCAPE_TYPE]string{
+	E_NOT:       "E_NOT",
 	E_RETURN:    "E_RETURN",
 	E_LAREG:     "E_LAREG",
 	E_DYNAMIC:   "E_DYNAMIC",
@@ -353,19 +354,17 @@ var escTypeToStr = map[ESCAPE_TYPE]string{
 	E_COROUTINE: "E_COROUTINE",
 	E_MAPINDEX:  "E_MAPINDEX",
 
-	E_CLOSURE:   "E_CLOSURE",
-	E_UNKNOWN:   "E_UNKNOWN",
+	E_CLOSURE:    "E_CLOSURE",
+	E_UNKNOWN:    "E_UNKNOWN",
 	E_CO_CLOSURE: "E_CO_CLOSURE",
-	E_NOT:       "E_NOT",
 }
-
-
 
 // tagHole returns a hole for evaluating an argument passed to param.
 // ks should contain the holes representing where the function
 // callee's results flows. fn is the statically-known callee function,
 // if any.
 func (e *escape) tagHole(ks []hole, fn *ir.Name, param *types.Field) hole {
+	fmt.Print("Getin TagHole\n")
 	// If this is a dynamic call, we can't rely on param.Note.
 	if fn == nil {
 		return e.heapHole()
@@ -390,19 +389,14 @@ func (e *escape) tagHole(ks []hole, fn *ir.Name, param *types.Field) hole {
 	if x := esc.Heap(); x >= 0 {
 		tagKs = append(tagKs, e.heapHole().shift(x))
 		escRsn = esc.getReason(leakHeap)
-		if param.Nname != nil {
-		fmt.Printf("leakHeap: param %s,object %s, escapes because: %s\n", param.Nname.Sym().Linkname,param.Nname.Sym().Name, escTypeToStr[escRsn])
-		}
 	}
 	if x := esc.Mutator(); x >= 0 {
 		tagKs = append(tagKs, e.mutatorHole().shift(x))
 		escRsn = esc.getReason(leakMutator)
-		//fmt.Printf("leakMutator: param %v escapes because: %s\n", param, escTypeToStr[escRsn])
 	}
 	if x := esc.Callee(); x >= 0 {
 		tagKs = append(tagKs, e.calleeHole().shift(x))
 		escRsn = esc.getReason(leakCallee)
-		//fmt.Printf("leakCallee: param %v escapes because: %s\n", param, escTypeToStr[escRsn])
 	}
 
 	if ks != nil {
@@ -410,11 +404,15 @@ func (e *escape) tagHole(ks []hole, fn *ir.Name, param *types.Field) hole {
 			if x := esc.Result(i); x >= 0 {
 				tagKs = append(tagKs, ks[i].shift(x))
 				escRsn = esc.getReason(leakResult0 + i)
-				//fmt.Printf("leakResult + %d: param %v escapes because: %s\n", i, param, escTypeToStr[escRsn])
 			}
 		}
 	}
 
+	if param.Nname != nil {
+		fmt.Printf("the object %s escRsn: %s\n", param.Nname.Sym().Name, escTypeToStr[escRsn])
+	} else {
+		fmt.Printf("the object nil escRsn: %s\n", escTypeToStr[escRsn])
+	}
 
 	// var escStr string
 
@@ -440,15 +438,17 @@ func (e *escape) tagHole(ks []hole, fn *ir.Name, param *types.Field) hole {
 	// 	escStr = "E_UNKNOWN"
 	// }
 
-
-
 	//fmt.Printf("param %v escapes because: %s\n", param, escTypeToStr[escRsn])
 
 	//return e.teeHole(tagKs...).note(param.Nname.(*ir.Name), escStr)
-	if param.Nname != nil && escRsn != E_UNKNOWN {
-    return e.teeHole(tagKs...).note(param.Nname.(*ir.Name), escTypeToStr[escRsn])
-}
-	return e.teeHole(tagKs...) // 没有名字就不加注解
+	if param.Nname != nil {
+		return e.teeHole(tagKs...).note(param.Nname.(*ir.Name), escTypeToStr[escRsn])
+	} else {
+		mynil := ir.Name{}
+		var mynode ir.Node = &mynil
+		return e.teeHole(tagKs...).note(mynode, escTypeToStr[escRsn])
+	}
+	// return e.teeHole(tagKs...) // 没有名字就不加注解
 
 }
 

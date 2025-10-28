@@ -228,7 +228,7 @@ var output_flow bool = true            // 是否输出详细的flow
 var is_parameter_leaks bool = false // 当前变量是不是不用统计的函数参数类型
 var lvalue_is_map bool = false      //左边变量是一个
 
-var EscReason ESCAPE_TYPE//用于向leaks.go传递逃逸类型
+var EscReason ESCAPE_TYPE //用于向leaks.go传递逃逸类型
 
 type one_why struct {
 	why     string    // 一个why
@@ -251,22 +251,21 @@ type one_escape struct {
 type ESCAPE_TYPE int
 
 const (
-	E_NOT 		ESCAPE_TYPE = iota	// 没找到逃逸
-	E_RETURN      					// 返回值指针
-	E_LAREG                         // 过大的make
-	E_DYNAMIC                       // make动态赋值
-	E_GLOBAL                        // 全局变量引用
-	E_INDIRECT                      // 间接
-	E_OUTERLOOP                     // 外层循环
+	E_NOT       ESCAPE_TYPE = iota // 没找到逃逸
+	E_RETURN                       // 返回值指针
+	E_LAREG                        // 过大的make
+	E_DYNAMIC                      // make动态赋值
+	E_GLOBAL                       // 全局变量引用
+	E_INDIRECT                     // 间接
+	E_OUTERLOOP                    // 外层循环
 	//E_FUNCPARAM                     // 函数调用
-	E_COROUTINE                     // 协程
-	E_MAPINDEX                      // MapIndex类型的
-	E_CALLPARAM                     // 被调用导致逃逸
+	E_COROUTINE // 协程
+	E_MAPINDEX  // MapIndex类型的
+	E_CALLPARAM // 被调用导致逃逸
 
-	E_CLOSURE                       // 闭包
-	E_CO_CLOSURE                    // 协程调用所需要的闭包
+	E_CLOSURE    // 闭包
+	E_CO_CLOSURE // 协程调用所需要的闭包
 	E_UNKNOWN
-	
 )
 
 // 定义的所有种类的个数
@@ -305,7 +304,7 @@ var ac = all_count{
 	c_unknown: 0,
 }
 
-//记录whys信息，并摘出逃逸节点到escape_paths
+// 记录whys信息，并摘出逃逸节点到escape_paths
 func (b *batch) recordInfo(dstLoc, srcLoc *location, notes *note) {
 	for n := notes; n != nil; n = n.next {
 		clonedWhy := strings.Clone(n.why) // 完全复制字节，不再共享内存
@@ -337,7 +336,7 @@ func (b *batch) recordInfo(dstLoc, srcLoc *location, notes *note) {
 
 }
 
-//输出打印逃逸信息，记录逃逸信息到one_escape_func
+// 输出打印逃逸信息，记录逃逸信息到one_escape_func
 func (b *batch) recordEscapeInfo(srcLoc, dstLoc *location, whyx ESCAPE_TYPE, bytesize int64, escapetype string) {
 
 	// 然后对不同种类进行记录和输出
@@ -386,7 +385,7 @@ func (b *batch) recordEscapeInfo(srcLoc, dstLoc *location, whyx ESCAPE_TYPE, byt
 		ac.c_unknown++
 		fmt.Printf("\033[32mmy unKnown escape count %d , escape size: %d , escape type: %s\033[0m\n", ac.c_unknown, bytesize, escapetype)
 	default:
-		fmt.Printf("\033[32mswitch defalut:%d\033[0m\n",whyx)
+		fmt.Printf("\033[32mswitch defalut:%d\033[0m\n", whyx)
 	}
 
 	clonedSrcName := b.explainLoc(srcLoc)
@@ -492,7 +491,6 @@ func (b *batch) find_Node_Name(n *ir.Node) *ir.Name {
 	return nil
 }
 
-
 // 确定右值是不是取地址类型的
 
 // storesAddress 判断 v 的底层种类是否为引用或指针类型
@@ -502,11 +500,11 @@ func (b *batch) storesAddress(v *ir.Node) bool {
 	// 	return false // nil 接口
 	// }
 	switch (*v).Type().Kind() {
-	case types.TPTR,types.TUNSAFEPTR,
-	types.TUINTPTR,types.TMAP,
-	types.TCHAN,types.TSLICE,
-	types.TSTRING,
-	types.TINTER,types.TFUNC:
+	case types.TPTR, types.TUNSAFEPTR,
+		types.TUINTPTR, types.TMAP,
+		types.TCHAN, types.TSLICE,
+		types.TSTRING,
+		types.TINTER, types.TFUNC:
 		return true
 	// case reflect.Ptr, reflect.UnsafePointer,
 	// 	reflect.Slice, reflect.Map,
@@ -518,7 +516,7 @@ func (b *batch) storesAddress(v *ir.Node) bool {
 	}
 }
 
-//用于输出逃逸变量的三种类型，map为1，slice为2，其余为3
+// 用于输出逃逸变量的三种类型，map为1，slice为2，其余为3
 func (b *batch) judgeType(v ir.Node) string {
 
 	switch v.Type().Kind() {
@@ -571,18 +569,18 @@ func (b *batch) rvalue_is_addr(n *ir.Node) bool {
 }
 
 var strToEscType = map[string]ESCAPE_TYPE{
-	"E_RETURN":    E_RETURN,
-	"E_LAREG":     E_LAREG,
-	"E_DYNAMIC":   E_DYNAMIC,
-	"E_GLOBAL":    E_GLOBAL,
-	"E_INDIRECT":  E_INDIRECT,
-	"E_OUTERLOOP": E_OUTERLOOP,
-	"E_COROUTINE": E_COROUTINE,
-	"E_MAPINDEX":  E_MAPINDEX,
-	"E_CLOSURE":   E_CLOSURE,
+	"E_NOT":        E_NOT,
+	"E_RETURN":     E_RETURN,
+	"E_LAREG":      E_LAREG,
+	"E_DYNAMIC":    E_DYNAMIC,
+	"E_GLOBAL":     E_GLOBAL,
+	"E_INDIRECT":   E_INDIRECT,
+	"E_OUTERLOOP":  E_OUTERLOOP,
+	"E_COROUTINE":  E_COROUTINE,
+	"E_MAPINDEX":   E_MAPINDEX,
+	"E_CLOSURE":    E_CLOSURE,
 	"E_CO_CLOSURE": E_CO_CLOSURE,
-	"E_UNKNOWN":   E_UNKNOWN,
-	"E_NOT":      E_NOT,
+	"E_UNKNOWN":    E_UNKNOWN,
 }
 
 // 遍历whys，计算一个变量逃逸的情况
@@ -599,17 +597,19 @@ func (b *batch) countAll() {
 		return
 	}
 
-	if !is_parameter_leaks && whys_len > 0 && whys[whys_len-1].why == "call parameter" {
-		b.recordEscapeInfo(escape_paths[0], escape_paths[len(escape_paths)-1], strToEscType[whys[whys_len].why], escape_paths[0].n.Type().Size(), b.judgeType(escape_paths[0].n))
+	// is_parameter_leaks之=指示现在是参数逃逸，但是我现在需要记录参数逃逸，因为之后的节点可能用到现在这个参数节点的信息
+	//if !is_parameter_leaks && whys_len > 0 && whys[whys_len-1].why == "call parameter" {
+	if whys_len > 0 && whys[whys_len-1].why == "call parameter" {
+		//b.recordEscapeInfo(escape_paths[0], escape_paths[len(escape_paths)-1], strToEscType[whys[whys_len].why], escape_paths[0].n.Type().Size(), b.judgeType(escape_paths[0].n))
 		is_not_1_edge = false
-		//EscReason = E_CALLPARAM
-		return
+		escape_reason = strToEscType[whys[whys_len].why]
+		haven_find_escape = true
+		//return
 	}
 
 	if is_parameter_leaks {
 		// 如果这个是还是函数参数的，直接不管
 		is_not_1_edge = false
-
 		//return
 	}
 
@@ -618,7 +618,7 @@ func (b *batch) countAll() {
 
 	// 先找是不是有其他已知的逃逸节点
 	ss := b.find_escape(escape_paths[len(escape_paths)-1])
-	if ss.why != E_NOT {
+	if ss.why != E_NOT && !haven_find_escape {
 		// 不为空，则能找到
 		haven_find_escape = true
 		escape_reason = ss.why
@@ -642,7 +642,7 @@ func (b *batch) countAll() {
 		*/
 
 		// 判断是不是闭包类型的
-		if escape_is_closure {
+		if !haven_find_escape && escape_is_closure {
 			// 认为是闭包类型的，记录
 			if this_stmt_is_go_defer {
 				// 协程调用导致的闭包
@@ -736,7 +736,7 @@ func (b *batch) countAll() {
 		ass, ok1 := (*whys[whys_len].where).(*ir.ReturnStmt)
 		// 看是不是赋值给PPARAMOUT类型的
 		ok2 := whys[whys_len].dstLoc.isName(ir.PPARAMOUT)
-		if ok1 || ok2 {
+		if !haven_find_escape && (ok1 || ok2) {
 			var arvalues []ir.Node
 			if ok1 {
 				arvalues = ass.Results
@@ -748,13 +748,13 @@ func (b *batch) countAll() {
 				// 	//arvalues[i].n = arvalue
 				// 	arvalues = append(arvalues, &location{n: arvalue})
 				// }
-			} else {//如果不是return类型，判断是以下三种类型（以下三种语句右值为取地址时，归结为return）
+			} else { //如果不是return类型，判断是以下三种类型（以下三种语句右值为取地址时，归结为return）
 				ar1, rok1 := (*whys[whys_len].where).(*ir.AssignStmt)
 				ar2, rok2 := (*whys[whys_len].where).(*ir.AssignListStmt)
 				ar3, rok3 := (*whys[whys_len].where).(*ir.AssignOpStmt)
 
 				//var loc *location//临时location
-				if rok1 {//arvalues存右值
+				if rok1 { //arvalues存右值
 					arvalues = append(arvalues, ar1.Y)
 				} else if rok2 {
 					arvalues = ar2.Rhs
@@ -774,19 +774,17 @@ func (b *batch) countAll() {
 						haven_find_escape = true
 						break
 					}
-			}
+				}
 			}
 
-			
 		}
 
-
 		// 其他RETURN类型的，这里是call param的
-        if whys[whys_len].why == "call parameter" &&
-            ((whys[0].srcLoc.n != nil && b.storesAddress(&(whys[0].srcLoc.n))) || whys[0].why == "address-of") { // 2种取地址的操作
-            escape_reason = E_RETURN
-            haven_find_escape = true
-        }
+		if whys[whys_len].why == "call parameter" &&
+			((whys[0].srcLoc.n != nil && b.storesAddress(&(whys[0].srcLoc.n))) || whys[0].why == "address-of") { // 2种取地址的操作
+			escape_reason = E_RETURN
+			haven_find_escape = true
+		}
 
 		if !haven_find_escape && whys_len >= 1 && whys[whys_len].why == "reference" {
 			if whys[whys_len-1].why == "captured by a closure" {
@@ -834,11 +832,12 @@ func (b *batch) countAll() {
 		}
 	}
 
-	EscReason = escape_reason//更新逃逸原因，传递给leaks.go
+	EscReason = escape_reason //更新逃逸原因，传递给leaks.go
 	// 记录逃逸原因
 	if !is_parameter_leaks {
-		b.recordEscapeInfo(escape_paths[0], escape_paths[len(escape_paths)-1], escape_reason, escape_paths[0].n.Type().Size(),b.judgeType(escape_paths[0].n))
+		b.recordEscapeInfo(escape_paths[0], escape_paths[len(escape_paths)-1], escape_reason, escape_paths[0].n.Type().Size(), b.judgeType(escape_paths[0].n))
 	}
+
 	is_not_1_edge = false
 }
 

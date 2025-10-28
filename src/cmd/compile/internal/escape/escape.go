@@ -202,7 +202,7 @@ func (b *batch) with(fn *ir.Func) *escape {
 	}
 }
 
-//建节点
+// 建节点
 func (b *batch) initFunc(fn *ir.Func) {
 	e := b.with(fn)
 	if fn.Esc() != escFuncUnknown {
@@ -232,7 +232,7 @@ func (b *batch) initFunc(fn *ir.Func) {
 	}
 }
 
-//建边
+// 建边
 func (b *batch) walkFunc(fn *ir.Func) {
 	e := b.with(fn)
 	fn.SetEsc(escFuncStarted)
@@ -308,6 +308,27 @@ func (b *batch) finish(fns []*ir.Func) {
 
 		for i, param := range fn.Type().RecvParams() {
 			param.Note = b.paramTag(fn, 1+i, param)
+/*
+			esc := parseLeaks(param.Note)
+
+			//reason := esc.getReason()
+			escRsn := E_UNKNOWN
+			if x := esc.Heap(); x >= 0 {
+				escRsn = esc.getReason(leakHeap)
+			}
+			if x := esc.Mutator(); x >= 0 {
+				escRsn = esc.getReason(leakMutator)
+			}
+			if x := esc.Callee(); x >= 0 {
+				escRsn = esc.getReason(leakCallee)
+			}
+
+			if param.Nname != nil {
+				fmt.Printf("finish the object %s escRsn: %s\n", param.Nname.Sym().Name, escTypeToStr[escRsn])
+			} else {
+				fmt.Printf("finish the object nil escRsn: %s\n", escTypeToStr[escRsn])
+			}
+				*/
 		}
 	}
 
