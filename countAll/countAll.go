@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -12,28 +13,32 @@ import (
 
 // ==== 配置区（请根据需要修改） ====
 const (
-	//logFile = "/home/rennny/dev/go/dataset/photoprism/photoprism.log" // 日志文件路径
-	//logFile = "/home/rennny/dev/go/dataset/kubernetes/k8s.log" // 日志文件路径
-	//logFile = "/home/rennny/dev/go/dataset/moby/moby.log" // 日志文件路径
-	//logFile = "/home/rennny/dev/go/dataset/dgraph/dgraph.log" // 日志文件路径
-	//logFile = "/home/rennny/dev/go/dataset/cli/cli.log" // 日志文件路径
-
-	//logFile = "/home/rmy/dev/dataset/hugo/countAll.log" // 日志文件路径
-	//logFile = "/home/rennny/dev/go/dataset/gogs/gogs.log" // 日志文件路径
-	//logFile = "/home/rennny/dev/go/dataset/v2ray-core/v2ray.log" // 日志文件路径
-	//logFile = "/home/rennny/dev/go/dataset/etcd/etcd.log" // 日志文件路径
-
-	logFile = "/home/rmy/dev/dataset/rclone/rclone.log" // 日志文件路径
+	//logFile = "/home/rmy/dev/dataset/rclone/rclone.log" // 日志文件路径
 	count   = 10                              // 每组数据的整数个数
 )
 
 // ===================================
 
 func main() {
+
+	// 定义命令行参数
+	logFile := flag.String("logFile", "", "日志文件路径")
+
+	// 解析命令行参数
+	flag.Parse()
+
+	// 检查是否传入参数
+	if *logFile == "" {
+		fmt.Println("请使用参数指定日志文件路径，例如：")
+		fmt.Println("  go run countAll.go -logFile=/home/rmy/dev/dataset/rclone/rclone.log")
+		return
+	}
+
+
 	// 打开日志文件
-	f, err := os.Open(logFile)
+	f, err := os.Open(*logFile)
 	if err != nil {
-		log.Fatalf("无法打开日志文件 %s: %v", logFile, err)
+		log.Fatalf("无法打开日志文件 %s: %v", *logFile, err)
 	}
 	defer f.Close()
 
